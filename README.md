@@ -1,7 +1,7 @@
 # D365FO-Prepare-D365DevelopmentMachine
 This repository contains a script for preparing a development machine for Dynamics 365 for Finance and Operations by installing additional tools and configuring the operating system automatically.
 
-Utilities
+### Utilities
 *	[Azure PowerShell](https://docs.microsoft.com/en-us/powershell/azure/overview?view=azurermps-6.11.0)
 *	[Azure Command Line Interface (CLI)](https://docs.microsoft.com/en-us/cli/azure/get-started-with-azure-cli?view=azure-cli-latest)
 *	[d365fo.tools](https://github.com/d365collaborative/d365fo.tools), PowerShell commands for Dynamics 365 for Finance and Operations
@@ -12,19 +12,19 @@ Utilities
 *	[Ola Hallengren's SQL maintenance solution](https://ola.hallengren.com/)
 *	[Peazip](http://www.peazip.org/)
 *	[Sysinternals tools](https://docs.microsoft.com/en-us/sysinternals/)
-*	[Winmerge](http://winmerge.org/) comparison tool
+*	[WinMerge](http://winmerge.org/) comparison tool
 
-Integrations/testing
+### Integrations/Interface Testing
 *	[Fiddler](https://www.telerik.com/fiddler)
 *	[Postman](https://www.getpostman.com/)
 *	[Python](https://www.python.org/)
 *	[Visual Studio Code](https://code.visualstudio.com/) w/Azure and SQL add-ins
 
-Performance Enhancement
+### Performance Enhancement
 * Rebuilds/Reorganizes SQL Server indexes on all databases
 * Defragments the disk (vhd)
 
-Miscellaneous
+### Miscellaneous
 * Configures Windows Updates
 * Creates a logoff link on the desktop
 * Disables Bing search results
@@ -47,5 +47,6 @@ Please record any problems encountered as issues to this repository.  Occasional
 ## Contributions are Encouraged
 If you notice a tool or configuration that could be automated there are two ways to contribute.
 
-A) Fork this repository, commit the necessary changes to your forked repository, then issue a pull request.  This will notify me to review the changes, test them, and incorporate them into the main script.
-B) Comment on the blog post at Calafell.me.
+A. Fork this repository, commit the necessary changes to your forked repository, then issue a pull request.  This will notify me to review the changes, test them, and incorporate them into the main script.
+
+B. Comment on the blog post at Calafell.me.  I will evaluate the suggestion and incorporate into the script.
