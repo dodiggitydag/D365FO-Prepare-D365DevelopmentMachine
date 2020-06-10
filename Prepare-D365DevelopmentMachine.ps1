@@ -9,7 +9,7 @@
  # Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('http://192.166.1.15:8000/Prepare-D365DevelopmentMachine.ps1'))
  #
  # Tested on Windows 10 and Windows Server 2016
- # Tested on F&O 7.3 OneBox and F&O 8.1 OneBox
+ # Tested on F&O 7.3 OneBox and F&O 8.1 OneBox and a 10.0.11 Azure Cloud Hosted Environment (CHE) deployed from LCS
  #
  # Ideas:
  #  Download useful SQL and PowerShell scripts, using Git?
