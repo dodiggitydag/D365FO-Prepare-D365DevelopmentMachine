@@ -6,8 +6,7 @@ This repository contains a script for preparing a development machine for Dynami
 *	[Azure Command Line Interface (CLI)](https://docs.microsoft.com/en-us/cli/azure/get-started-with-azure-cli?view=azure-cli-latest)
 *	[d365fo.tools](https://github.com/d365collaborative/d365fo.tools), PowerShell commands for Dynamics 365 for Finance and Operations
 *	[dbatools](https://dbatools.io/), PowerShell commands for T-SQL
-*	[Chrome](https://www.google.com/chrome/)
-*	[Git](https://git-scm.com/)
+*	[Edge](https://www.microsoft.com/en-us/edge)
 *	[Notepad++](https://notepad-plus-plus.org/)
 *	[Ola Hallengren's SQL maintenance solution](https://ola.hallengren.com/)
 *	[Peazip](http://www.peazip.org/)
@@ -17,14 +16,16 @@ This repository contains a script for preparing a development machine for Dynami
 ### Integrations/Interface Testing Utilities
 *	[Fiddler](https://www.telerik.com/fiddler)
 *	[Postman](https://www.getpostman.com/)
-*	[Python](https://www.python.org/)
 *	[Visual Studio Code](https://code.visualstudio.com/) w/Azure and SQL add-ins
 
 ### Performance Enhancements
 * Rebuilds/Reorganizes SQL Server indexes on all databases
 * Defragments the disk (vhd)
+* Sets Windows Defender rules to speed up compilation time
+* Prevents Management Reporter from automatically starting
 
 ### Miscellaneous
+* Sets the web browser homepage to the local environment URL
 * Configures Windows Updates
 * Creates a logoff link on the desktop
 * Disables Bing search results

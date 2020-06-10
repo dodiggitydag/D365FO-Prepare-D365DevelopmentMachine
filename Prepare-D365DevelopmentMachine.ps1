@@ -9,7 +9,7 @@
  # Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('http://192.166.1.15:8000/Prepare-D365DevelopmentMachine.ps1'))
  #
  # Tested on Windows 10 and Windows Server 2016
- # Tested on client laptop and F&O 7.3 OneBox and F&O 8.1 OneBox
+ # Tested on F&O 7.3 OneBox and F&O 8.1 OneBox
  #
  # Ideas:
  #  Download useful SQL and PowerShell scripts, using Git?
@@ -47,16 +47,16 @@ Else {
         "azurepowershell"
         "azure-cli"
         "winmerge"
-        "python"
+        #"python"
         "vscode"
         "vscode-mssql"
         "vscode-azurerm-tools"
         "peazip"
-        "googlechrome"
+        "microsoft-edge"
         "notepadplusplus.install"
-        "git.install"
+        #"git.install"
         "sysinternals"
-        "postman"
+        "postman"  # or insomnia-rest-api-client
         "fiddler"
     )
 
@@ -88,12 +88,22 @@ else {
     Update-Module -name d365fo.tools -SkipPublisherCheck -Scope AllUsers
 }
 
+Write-Host "Setting web browser homepage to the local environment"
+Get-D365Url | Set-D365StartPage
+
+Write-Host "Setting Management Reporter to manual startup to reduce churn and Event Log messages"
+Get-D365Environment -FinancialReporter | Set-Service -StartupType Manual
+
+Write-Host "Setting Windows Defender rules to speed up compilation time"
+Add-D365WindowsDefenderRules -Silent
+
+
 #endregion
 
 
 #region Privacy
 
-# Disable Telemetry (requires a reboot to take effect)
+# Disable Windows Telemetry (requires a reboot to take effect)
 Set-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection -Name AllowTelemetry -Type DWord -Value 0
 Get-Service DiagTrack,Dmwappushservice | Stop-Service | Set-Service -StartupType Disabled
 
@@ -217,8 +227,8 @@ $Shortcut.Save()
 
 if ((Get-WmiObject Win32_OperatingSystem).Caption -Like "*Windows 10*") {
 
-    Write-Host "Changing Windows Updates to -Notify to schedule restart-"
-    Set-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings -Name UxOption -Type DWord -Value 1
+    #Write-Host "Changing Windows Updates to -Notify to schedule restart-"
+    #Set-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings -Name UxOption -Type DWord -Value 1
 
     Write-Host "Disabling P2P Update downlods outside of local network"
     Set-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config -Name DODownloadMode -Type DWord -Value 1
