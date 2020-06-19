@@ -100,6 +100,36 @@ Add-D365WindowsDefenderRules -Silent
 
 #endregion
 
+#region Local User Policy
+
+# Set the password to never expire
+Get-WmiObject Win32_UserAccount -filter "LocalAccount=True" | ? {$_.SID -Like "S-1-5-21-*-500"} | Set-LocalUser -PasswordNeverExpires 1
+
+# Disable changing the password
+$registryPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\System"
+$name = "DisableChangePassword"
+$value = "1"
+
+If (!(Test-Path $registryPath))
+{
+    New-Item -Path $registryPath -Force | Out-Null
+    New-ItemProperty -Path $registryPath -Name $name -Value $value -PropertyType DWORD -Force | Out-Null
+}
+Else
+{
+    $passwordChangeRegKey = Get-ItemProperty -Path $registryPath -Name $Name -ErrorAction SilentlyContinue
+    
+    If (-Not $passwordChangeRegKey)
+    {
+        New-ItemProperty -Path $registryPath -Name $name -Value $value -PropertyType DWORD -Force | Out-Null
+    }
+    Else
+    {
+        Set-ItemProperty -Path $registryPath -Name $name -Value $value
+    }
+}
+
+#endregion
 
 #region Privacy
 
