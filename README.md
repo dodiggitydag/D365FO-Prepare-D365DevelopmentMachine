@@ -26,6 +26,7 @@ This repository contains a script for preparing a development machine for Dynami
 
 ### Miscellaneous
 * Sets the web browser homepage to the local environment URL
+* Set the password to never expire and disable change password menu item
 * Configures Windows Updates
 * Creates a logoff link on the desktop
 * Disables Bing search results
@@ -35,7 +36,6 @@ This repository contains a script for preparing a development machine for Dynami
 * Sets power settings to high performance
 * Sets some privacy settings
 * Updates PowerShell command line help
-
 
 ## Usage
 Before running this script, you should create the VM, either using LCS or the VHD, and start the environment.  The first hour may be Windows Updates and the "antimalware" executable doing a virus scan on the drive.  Once that has completed (possible reboot required), run the following command to execute the PowerShell script on the VM:
