@@ -23,7 +23,7 @@ If(Test-Path -Path "$env:ProgramData\Chocolatey") {
 }
 Else {
 
-    Write-Host “Installing Chocolatey”
+    Write-Host "Installing Chocolatey"
  
     [System.Net.WebRequest]::DefaultWebProxy.Credentials = [System.Net.CredentialCache]::DefaultCredentials
     iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
@@ -40,9 +40,10 @@ Else {
     }
     $chocoExePath = Join-Path $chocoPath 'bin\choco.exe'
 
+    $LargeTable = "PUT_A_LARGE_TABLE"
 
     $packages = @(
-        #"adobereader" - TODO: test for compatibilitiy on Windows Server 2016
+        "adobereader"
         #"microsoftazurestorageexplorer"  - TODO: The current package has a bad checksum, test again later
         "azurepowershell"
         "azure-cli"
@@ -52,18 +53,20 @@ Else {
         "vscode-mssql"
         "vscode-azurerm-tools"
         "peazip"
-        "microsoft-edge"
         "notepadplusplus.install"
-        #"git.install"
+        "git.install"
         "sysinternals"
         "postman"  # or insomnia-rest-api-client
         "fiddler"
+        "dotnetcore"
+        "winmerge"
+        "azure-data-studio"
     )
 
     # Install each program
     foreach ($packageToInstall in $packages) {
 
-        Write-Host “Installing $packageToInstall” -ForegroundColor Green
+        Write-Host "Installing $packageToInstall" -ForegroundColor Green
         & $chocoExePath "install" $packageToInstall "-y" "-r"
     }
 }
@@ -74,7 +77,6 @@ Else {
 #region Installing d365fo.tools
 
 # This is requried by Find-Module, by doing it beforehand we remove some warning messages
-Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope AllUsers
 Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
 
 # Installing d365fo.tools
@@ -198,22 +200,54 @@ Function Execute-Sql {
     }
 }
 
-If (Test-Path “HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL”) {
+If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL") {
 
-    Write-Host “Installing dbatools PowerShell module”
+    Write-Host "Installing dbatools PowerShell module"
     Install-Module -Name dbatools -SkipPublisherCheck -Scope AllUsers
 
-    Write-Host “Installing Ola Hallengren's SQL Maintenance scripts”
+    Write-Host "Installing Ola Hallengren's SQL Maintenance scripts"
     Import-Module -Name dbatools
     Install-DbaMaintenanceSolution -SqlInstance . -Database master
 
-    Write-Host “Running Ola Hallengren's IndexOptimize tool”
+    Write-Host "Adding trace flags"
+    Enable-DbaTraceFlag -SqlInstance . -TraceFlag 174,834,1204,1222,1224,2505,7412
 
+    Write-Host "Restarting service"
+    Restart-DbaService -Type Engine -Force
+
+    Write-Host "Setting recovery model"
+    Set-DbaDbRecoveryModel -SqlInstance . -RecoveryModel Simple -Database AxDB -Confirm:$false
+    
+    Write-Host "purging disposable data"
+    $sql = "delete $LargeTable where $LargeTable.CREATEDDATETIME < dateadd(""MM"", -2, getdate())
+    truncate table batchjobhistory
+    truncate table batchhistory
+    truncate table eventcud
+    truncate table sysdatabaselog
+    
+    EXEC sp_msforeachtable
+    @command1 ='truncate table ?'
+    ,@whereand = ' And Object_id In (Select Object_id From sys.objects
+    Where name like ''%tmp'')'"
+    
+    Execute-Sql -server "." -database "AxDB" -command $sql
+    
+    $sql = "DELETE [REFERENCES] FROM [REFERENCES]
+    JOIN Names ON (Names.Id = [REFERENCES].SourceId OR Names.Id = [REFERENCES].TargetId)
+    JOIN Modules ON Names.ModuleId = Modules.Id
+    WHERE Module LIKE '%Test%' AND Module <> 'TestEssentials'"
+    
+    Execute-Sql -server "." -database "DYNAMICSXREFDB" -command $sql
+    
+    Write-Host "Reclaiming freed database space"
+    Invoke-DbaDbShrink -SqlInstance . -Database AxDB,DYNAMICSXREFDB
+    
+    Write-Host "Running Ola Hallengren's IndexOptimize tool"
     # http://calafell.me/defragment-indexes-on-d365-finance-operations-virtual-machine/
     $sql = "EXECUTE master.dbo.IndexOptimize
-        @Databases = 'ALL_DATABASES',
-        @FragmentationLow = NULL,
-        @FragmentationMedium = 'INDEX_REORGANIZE,INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',
+    @Databases = 'ALL_DATABASES',
+    @FragmentationLow = NULL,
+    @FragmentationMedium = 'INDEX_REORGANIZE,INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',
         @FragmentationHigh = 'INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',
         @FragmentationLevel1 = 5,
         @FragmentationLevel2 = 25,
@@ -221,9 +255,11 @@ If (Test-Path “HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQ
         @UpdateStatistics = 'ALL',
         @OnlyModifiedStatistics = 'Y'"
 
-    Execute-Sql -server "." -database "master" -command $sql
-} Else {
-    Write-Verbose “SQL not installed.  Skipped Ola Hallengren's index optimization”
+    Execute-Sql -server "." -database "master" -command $sql    
+} 
+Else 
+{
+    Write-Verbose "SQL not installed.  Skipped Ola Hallengren's index optimization"
 }
 
 #endregion
@@ -244,7 +280,7 @@ Write-Host "Setting power settings to High Performance"
 powercfg.exe /SetActive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
 
 # Create Logoff Icon
-Write-Host “Creating logoff icon on desktop of the current user”
+Write-Host "Creating logoff icon on desktop of the current user"
 $WshShell = New-Object -comObject WScript.Shell
 $Shortcut = $WshShell.CreateShortcut($env:HOMEDRIVE + $env:HOMEPATH + "\Desktop\logoff.lnk")
 $Shortcut.TargetPath = "C:\Windows\System32\logoff.exe"
