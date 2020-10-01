@@ -45,24 +45,25 @@ Else {
     )
 
     $packages = @(
-        "adobereader"
-        #"microsoftazurestorageexplorer"  - TODO: The current package has a bad checksum, test again later
-        "azurepowershell"
-        "azure-cli"
-        "winmerge"
-        #"python"
-        "vscode"
-        "vscode-mssql"
-        "vscode-azurerm-tools"
-        "peazip"
-        "notepadplusplus.install"
-        "git.install"
-        "sysinternals"
-        "postman"  # or insomnia-rest-api-client
-        "fiddler"
-        "dotnetcore"
-        "azure-data-studio"
         "powershell-core --install-arguments='ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1'"
+        "adobereader"
+        "azure-cli"
+        "azure-data-studio"
+        "azurepowershell"
+        "dotnetcore"
+        "fiddler"
+        "git.install"
+        "googlechrome"
+        "notepadplusplus.install"
+        "p4merge"
+        "peazip"
+        "postman"  # or insomnia-rest-api-client
+        "sysinternals"
+        "vscode"
+        "visualstudio-codealignment"
+        "vscode-azurerm-tools"
+        "vscode-powershell"
+        "winmerge"
     )
 
     # Install each program
