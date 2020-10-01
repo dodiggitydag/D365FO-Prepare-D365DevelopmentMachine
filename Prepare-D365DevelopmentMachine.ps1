@@ -45,7 +45,6 @@ Else {
     )
 
     $packages = @(
-        "powershell-core --install-arguments='ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1'"
         "adobereader"
         "azure-cli"
         "azure-data-studio"
