@@ -41,7 +41,7 @@ Else {
     $chocoExePath = Join-Path $chocoPath 'bin\choco.exe'
 
     $LargeTables = @(
-        #"largeTables"
+        #"LargeTable"
     )
 
     $packages = @(
@@ -206,6 +206,9 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
 
     Write-Host "Installing dbatools PowerShell module"
     Install-Module -Name dbatools -SkipPublisherCheck -Scope AllUsers
+
+    Write-Host "Installing FirstAidResponder PowerShell module"
+    Install-DbaFirstResponderKit -SqlInstance . -Database master
 
     Write-Host "Installing Ola Hallengren's SQL Maintenance scripts"
     Import-Module -Name dbatools
