@@ -40,7 +40,9 @@ Else {
     }
     $chocoExePath = Join-Path $chocoPath 'bin\choco.exe'
 
-    $LargeTable = "PUT_A_LARGE_TABLE"
+    $LargeTables = @(
+        #"largeTables"
+    )
 
     $packages = @(
         "adobereader"
@@ -209,6 +211,18 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     Import-Module -Name dbatools
     Install-DbaMaintenanceSolution -SqlInstance . -Database master
 
+    Write-Host "Install latest CU"
+    if(!Test-Path("C:\temp\SqlKB"))
+    {
+        mkdir "C:\temp\SqlKB"
+    }
+
+    $DownloadPath = "C:\temp\SqlKB"
+
+    $BuildTargets = Test-DbaBuild -SqlInstance . -MaxBehind 0CU -Update | Where-Object { !$PSItem.Compliant } | Select-Object -ExpandProperty BuildTarget -Unique
+    Get-DbaBuildReference -Build $BuildTargets | ForEach-Object { Save-DbaKBUpdate -Path $DownloadPath -Name $PSItem.KBLevel };
+    Update-DbaInstance -ComputerName . -Path $DownloadPath -Confirm:$false
+
     Write-Host "Adding trace flags"
     Enable-DbaTraceFlag -SqlInstance . -TraceFlag 174,834,1204,1222,1224,2505,7412
 
@@ -219,8 +233,7 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     Set-DbaDbRecoveryModel -SqlInstance . -RecoveryModel Simple -Database AxDB -Confirm:$false
     
     Write-Host "purging disposable data"
-    $sql = "delete $LargeTable where $LargeTable.CREATEDDATETIME < dateadd(""MM"", -2, getdate())
-    truncate table batchjobhistory
+    $sql = "truncate table batchjobhistory
     truncate table batchhistory
     truncate table eventcud
     truncate table sysdatabaselog
@@ -231,6 +244,11 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     Where name like ''%tmp'')'"
     
     Execute-Sql -server "." -database "AxDB" -command $sql
+
+    $LargeTables | ForEach-Object {
+        $sql = "delete $LargeTable where $LargeTable.CREATEDDATETIME < dateadd(""MM"", -2, getdate())"
+        Execute-Sql -server "." -database "AxDB" -command $sql
+    }
     
     $sql = "DELETE [REFERENCES] FROM [REFERENCES]
     JOIN Names ON (Names.Id = [REFERENCES].SourceId OR Names.Id = [REFERENCES].TargetId)
