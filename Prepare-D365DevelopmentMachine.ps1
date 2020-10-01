@@ -41,7 +41,7 @@ Else {
     $chocoExePath = Join-Path $chocoPath 'bin\choco.exe'
 
     $LargeTables = @(
-        #"LargeTable"
+        #"LargeTables"
     )
 
     $packages = @(
@@ -61,8 +61,8 @@ Else {
         "postman"  # or insomnia-rest-api-client
         "fiddler"
         "dotnetcore"
-        "winmerge"
         "azure-data-studio"
+        "powershell-core --install-arguments='ADD_EXPLORER_CONTEXT_MENU_OPENPOWERSHELL=1'"
     )
 
     # Install each program
@@ -207,15 +207,17 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     Write-Host "Installing dbatools PowerShell module"
     Install-Module -Name dbatools -SkipPublisherCheck -Scope AllUsers
 
-    Write-Host "Installing FirstAidResponder PowerShell module"
-    Install-DbaFirstResponderKit -SqlInstance . -Database master
-
+    
     Write-Host "Installing Ola Hallengren's SQL Maintenance scripts"
     Import-Module -Name dbatools
     Install-DbaMaintenanceSolution -SqlInstance . -Database master
 
+    Write-Host "Installing FirstAidResponder PowerShell module"
+    Install-DbaFirstResponderKit -SqlInstance . -Database master
+    
     Write-Host "Install latest CU"
-    if(!Test-Path("C:\temp\SqlKB"))
+    $PathExists = Test-Path("C:\temp\SqlKB")
+    if($PathExists -eq $false)
     {
         mkdir "C:\temp\SqlKB"
     }
