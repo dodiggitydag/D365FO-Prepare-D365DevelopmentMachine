@@ -17,6 +17,8 @@
 
 #region Install additional apps using Chocolatey
 
+Start-Process -Wait -FilePath "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installer.exe" -ArgumentList "update --passive --norestart --installpath ""C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional"""
+
 If(Test-Path -Path "$env:ProgramData\Chocolatey") {
     choco upgrade chocolatey -y -r
     choco upgrade all --ignore-checksums -y -r
