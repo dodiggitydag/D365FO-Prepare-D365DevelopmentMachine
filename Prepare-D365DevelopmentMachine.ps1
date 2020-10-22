@@ -17,9 +17,67 @@
 
 #region Install additional apps using Chocolatey
 
-Start-Process -Wait -FilePath "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installer.exe" -ArgumentList "update --passive --norestart --installpath ""C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional"""
+#update visual studio
+Start-Process -Wait `
+    -FilePath "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installer.exe" `
+    -ArgumentList 'update --passive --norestart --installpath "C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional"'
 
-If(Test-Path -Path "$env:ProgramData\Chocolatey") {
+
+#install TrudAX
+$repo = "TrudAX/TRUDUtilsD365"
+$releases = "https://api.github.com/repos/$repo/releases"
+$path = "C:\Temp\Addin"
+
+If(!(test-path $path))
+{
+    New-Item -ItemType Directory -Force -Path $path
+}
+cd $path
+
+Write-Host Determining latest release
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+$tag = (Invoke-WebRequest -Uri $releases -UseBasicParsing | ConvertFrom-Json)[0].tag_name
+
+$files = @("InstallToVS.exe",  "TRUDUtilsD365.dll",  "TRUDUtilsD365.pdb")
+
+Write-Host Downloading files
+foreach ($file in $files) 
+{
+    $download = "https://github.com/$repo/releases/download/$tag/$file"
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Invoke-WebRequest $download -Out $file
+    Unblock-File $file
+}
+Start-Process "InstallToVS.exe" -Verb runAs    
+
+
+# Set file and folder path for SSMS installer .exe
+$folderpath = "c:\windows\temp"
+$filepath = "$folderpath\SSMS-Setup-ENU.exe"
+ 
+#If SSMS not present, download
+if (!(Test-Path $filepath)) {
+    write-host "Downloading SQL Server SSMS..."
+    $URL = "https://aka.ms/ssmsfullsetup"
+    $clnt = New-Object System.Net.WebClient
+    $clnt.DownloadFile($url, $filepath)
+    Write-Host "SSMS installer download complete" -ForegroundColor Green
+ 
+}
+else {
+ 
+    write-host "Located the SQL SSMS Installer binaries, moving on to install..."
+}
+ 
+# start the SSMS installer
+write-host "Beginning SSMS install..." -nonewline
+$Parms = " /Install /Quiet /Norestart /Logs log.txt"
+$Prms = $Parms.Split(" ")
+& "$filepath" $Prms | Out-Null
+Write-Host "SSMS installation complete" -ForegroundColor Green
+
+
+If (Test-Path -Path "$env:ProgramData\Chocolatey") {
     choco upgrade chocolatey -y -r
     choco upgrade all --ignore-checksums -y -r
 }
@@ -35,10 +93,10 @@ Else {
     #   This part is copied from https://chocolatey.org/install.ps1
     $chocoPath = [Environment]::GetEnvironmentVariable("ChocolateyInstall")
     if ($chocoPath -eq $null -or $chocoPath -eq '') {
-      $chocoPath = "$env:ALLUSERSPROFILE\Chocolatey"
+        $chocoPath = "$env:ALLUSERSPROFILE\Chocolatey"
     }
     if (!(Test-Path ($chocoPath))) {
-      $chocoPath = "$env:SYSTEMDRIVE\ProgramData\Chocolatey"
+        $chocoPath = "$env:SYSTEMDRIVE\ProgramData\Chocolatey"
     }
     $chocoExePath = Join-Path $chocoPath 'bin\choco.exe'
 
@@ -109,28 +167,24 @@ Add-D365WindowsDefenderRules -Silent
 #region Local User Policy
 
 # Set the password to never expire
-Get-WmiObject Win32_UserAccount -filter "LocalAccount=True" | ? {$_.SID -Like "S-1-5-21-*-500"} | Set-LocalUser -PasswordNeverExpires 1
+Get-WmiObject Win32_UserAccount -filter "LocalAccount=True" | ? { $_.SID -Like "S-1-5-21-*-500" } | Set-LocalUser -PasswordNeverExpires 1
 
 # Disable changing the password
 $registryPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\System"
 $name = "DisableChangePassword"
 $value = "1"
 
-If (!(Test-Path $registryPath))
-{
+If (!(Test-Path $registryPath)) {
     New-Item -Path $registryPath -Force | Out-Null
     New-ItemProperty -Path $registryPath -Name $name -Value $value -PropertyType DWORD -Force | Out-Null
 }
-Else
-{
+Else {
     $passwordChangeRegKey = Get-ItemProperty -Path $registryPath -Name $Name -ErrorAction SilentlyContinue
     
-    If (-Not $passwordChangeRegKey)
-    {
+    If (-Not $passwordChangeRegKey) {
         New-ItemProperty -Path $registryPath -Name $name -Value $value -PropertyType DWORD -Force | Out-Null
     }
-    Else
-    {
+    Else {
         Set-ItemProperty -Path $registryPath -Name $name -Value $value
     }
 }
@@ -141,7 +195,7 @@ Else
 
 # Disable Windows Telemetry (requires a reboot to take effect)
 Set-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection -Name AllowTelemetry -Type DWord -Value 0
-Get-Service DiagTrack,Dmwappushservice | Stop-Service | Set-Service -StartupType Disabled
+Get-Service DiagTrack, Dmwappushservice | Stop-Service | Set-Service -StartupType Disabled
 
 # Start Menu: Disable Bing Search Results
 Set-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search -Name BingSearchEnabled -Type DWord -Value 0
@@ -149,20 +203,20 @@ Set-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search -N
 
 # Start Menu: Disable Cortana
 If (!(Test-Path "HKCU:\SOFTWARE\Microsoft\Personalization\Settings")) {
-	New-Item -Path "HKCU:\SOFTWARE\Microsoft\Personalization\Settings" -Force | Out-Null
+    New-Item -Path "HKCU:\SOFTWARE\Microsoft\Personalization\Settings" -Force | Out-Null
 }
 Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Personalization\Settings" -Name "AcceptedPrivacyPolicy" -Type DWord -Value 0
 If (!(Test-Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization")) {
-	New-Item -Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization" -Force | Out-Null
+    New-Item -Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization" -Force | Out-Null
 }
 Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization" -Name "RestrictImplicitTextCollection" -Type DWord -Value 1
 Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization" -Name "RestrictImplicitInkCollection" -Type DWord -Value 1
 If (!(Test-Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore")) {
-	New-Item -Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore" -Force | Out-Null
+    New-Item -Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore" -Force | Out-Null
 }
 Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore" -Name "HarvestContacts" -Type DWord -Value 0
 If (!(Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search")) {
-	New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" -Force | Out-Null
+    New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" -Force | Out-Null
 }
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" -Name "AllowCortana" -Type DWord -Value 0
 
@@ -173,12 +227,11 @@ Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search
 
 Function Execute-Sql {
     Param(
-        [Parameter(Mandatory=$true)][string]$server,
-        [Parameter(Mandatory=$true)][string]$database,
-        [Parameter(Mandatory=$true)][string]$command
+        [Parameter(Mandatory = $true)][string]$server,
+        [Parameter(Mandatory = $true)][string]$database,
+        [Parameter(Mandatory = $true)][string]$command
     )
-    Process
-    {
+    Process {
         $scon = New-Object System.Data.SqlClient.SqlConnection
         $scon.ConnectionString = "Data Source=$server;Initial Catalog=$database;Integrated Security=true"
         
@@ -187,17 +240,14 @@ Function Execute-Sql {
         $cmd.CommandTimeout = 0
         $cmd.CommandText = $command
 
-        try
-        {
+        try {
             $scon.Open()
             $cmd.ExecuteNonQuery()
         }
-        catch [Exception]
-        {
+        catch [Exception] {
             Write-Warning $_.Exception.Message
         }
-        finally
-        {
+        finally {
             $scon.Dispose()
             $cmd.Dispose()
         }
@@ -219,8 +269,7 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     
     Write-Host "Install latest CU"
     $PathExists = Test-Path("C:\temp\SqlKB")
-    if($PathExists -eq $false)
-    {
+    if ($PathExists -eq $false) {
         mkdir "C:\temp\SqlKB"
     }
 
@@ -231,7 +280,7 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     Update-DbaInstance -ComputerName . -Path $DownloadPath -Confirm:$false
 
     Write-Host "Adding trace flags"
-    Enable-DbaTraceFlag -SqlInstance . -TraceFlag 174,834,1204,1222,1224,2505,7412
+    Enable-DbaTraceFlag -SqlInstance . -TraceFlag 174, 834, 1204, 1222, 1224, 2505, 7412
 
     Write-Host "Restarting service"
     Restart-DbaService -Type Engine -Force
@@ -265,7 +314,7 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     Execute-Sql -server "." -database "DYNAMICSXREFDB" -command $sql
     
     Write-Host "Reclaiming freed database space"
-    Invoke-DbaDbShrink -SqlInstance . -Database AxDB,DYNAMICSXREFDB
+    Invoke-DbaDbShrink -SqlInstance . -Database AxDB, DYNAMICSXREFDB
     
     Write-Host "Running Ola Hallengren's IndexOptimize tool"
     # http://calafell.me/defragment-indexes-on-d365-finance-operations-virtual-machine/
@@ -282,8 +331,7 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
 
     Execute-Sql -server "." -database "master" -command $sql    
 } 
-Else 
-{
+Else {
     Write-Verbose "SQL not installed.  Skipped Ola Hallengren's index optimization"
 }
 
@@ -366,7 +414,7 @@ Function Start-DiskDefrag {
     [CmdletBinding()]
     [OutputType([Object])]
     Param (
-        [Parameter(Mandatory=$true, ValueFromPipelineByPropertyName=$true)] [string] $DriveLetter, 
+        [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $true)] [string] $DriveLetter, 
         [Parameter()] [switch] $Force
     )
     
@@ -395,7 +443,7 @@ Function Start-DiskDefrag {
             Write-Verbose "Checking free space for volume $driveletter"
             
             #Check the free space on the volume is greater than 15% of the total volume size, if it isn't write an error
-            if (($Volume.FreeSpace /1GB) -lt ($Volume.Capacity / 1GB) * 0.15) {
+            if (($Volume.FreeSpace / 1GB) -lt ($Volume.Capacity / 1GB) * 0.15) {
                 Write-Error "Volume $Driveletter does not have sufficient free space to allow a disk defragmentation, to perform a disk defragmentation either free up some space on the volume or use Start-DiskDefrag with the -force switch"
             }
             Else {
@@ -411,16 +459,16 @@ Function Start-DiskDefrag {
         
         #Check the defragmentation results and inform the user of any errors
         Switch ($Defrag.ReturnValue) {
-            0  { Write-Verbose "Defragmentation completed successfully..." }
-            1  { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Access Denied" }
-            2  { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Defragmentation is not supported for this volume" }
-            3  { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Volume dirty bit is set" }
-            4  { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Insufficient disk space" }
-            5  { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Corrupt master file table detected" }
-            6  { Write-Error -Message "Defragmentation of volume $DriveLetter failed: The operation was cancelled" }
-            7  { Write-Error -Message "Defragmentation of volume $DriveLetter failed: The operation was cancelled" }
-            8  { Write-Error -Message "Defragmentation of volume $DriveLetter failed: A disk defragmentation is already in process" }
-            9  { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Unable to connect to the defragmentation engine" }
+            0 { Write-Verbose "Defragmentation completed successfully..." }
+            1 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Access Denied" }
+            2 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Defragmentation is not supported for this volume" }
+            3 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Volume dirty bit is set" }
+            4 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Insufficient disk space" }
+            5 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Corrupt master file table detected" }
+            6 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: The operation was cancelled" }
+            7 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: The operation was cancelled" }
+            8 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: A disk defragmentation is already in process" }
+            9 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Unable to connect to the defragmentation engine" }
             10 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: A defragmentation engine error occurred" }
             11 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Unknown error" }
         }
@@ -438,5 +486,9 @@ ForEach ($res in Get-Partition) {
         Start-DiskDefrag $dl
     }
 }
+
+#run windows update
+Install-Module PSWindowsUpdate
+Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -AutoReboot
 
 #endregion
