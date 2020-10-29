@@ -301,6 +301,13 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     
     Execute-Sql -server "." -database "AxDB" -command $sql
 
+    Write-Host "Setting database options"
+    $sql = "ALTER DATABASE [AxDB] SET AUTO_CLOSE OFF"
+    Execute-Sql -server "." -database "AxDB" -command $sql
+
+    $sql = "ALTER DATABASE [AxDB] SET AUTO_UPDATE_STATISTICS_ASYNC OFF"
+    Execute-Sql -server "." -database "AxDB" -command $sql
+
     $LargeTables | ForEach-Object {
         $sql = "delete $LargeTable where $LargeTable.CREATEDDATETIME < dateadd(""MM"", -2, getdate())"
         Execute-Sql -server "." -database "AxDB" -command $sql
