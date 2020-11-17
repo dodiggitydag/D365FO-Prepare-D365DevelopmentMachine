@@ -292,6 +292,14 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
 
     $sql = "ALTER DATABASE [AxDB] SET AUTO_UPDATE_STATISTICS_ASYNC OFF"
     Execute-Sql -server "." -database "AxDB" -command $sql
+
+    Write-Host "Setting batchservergroup options"
+    $sql = "delete batchservergroup where SERVERID <> 'Batch:'+@@servername
+
+    insert into batchservergroup(GROUPID, SERVERID, RECID, RECVERSION, CREATEDDATETIME, CREATEDBY)
+    select GROUP_, 'Batch:'+@@servername, 5900000000 + cast(CRYPT_GEN_RANDOM(4) as bigint), 1, GETUTCDATE(), '-admin-' from batchgroup
+        where not EXISTS (select recid from batchservergroup where batchservergroup.GROUPID = batchgroup.GROUP_)"
+    Execute-Sql -server "." -database "AxDB" -command $sql    
     
     Write-Host "purging disposable data"
     $sql = "truncate table batchjobhistory
