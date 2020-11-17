@@ -327,9 +327,9 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     Write-Host "Running Ola Hallengren's IndexOptimize tool"
     # http://calafell.me/defragment-indexes-on-d365-finance-operations-virtual-machine/
     $sql = "EXECUTE master.dbo.IndexOptimize
-    @Databases = 'ALL_DATABASES',
-    @FragmentationLow = NULL,
-    @FragmentationMedium = 'INDEX_REORGANIZE,INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',
+        @Databases = 'ALL_DATABASES',
+        @FragmentationLow = NULL,
+        @FragmentationMedium = 'INDEX_REORGANIZE,INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',
         @FragmentationHigh = 'INDEX_REBUILD_ONLINE,INDEX_REBUILD_OFFLINE',
         @FragmentationLevel1 = 5,
         @FragmentationLevel2 = 25,
