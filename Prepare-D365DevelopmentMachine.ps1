@@ -278,28 +278,15 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     $BuildTargets = Test-DbaBuild -SqlInstance . -MaxBehind 0CU -Update | Where-Object { !$PSItem.Compliant } | Select-Object -ExpandProperty BuildTarget -Unique
     Get-DbaBuildReference -Build $BuildTargets | ForEach-Object { Save-DbaKBUpdate -Path $DownloadPath -Name $PSItem.KBLevel };
     Update-DbaInstance -ComputerName . -Path $DownloadPath -Confirm:$false
-
+    
     Write-Host "Adding trace flags"
     Enable-DbaTraceFlag -SqlInstance . -TraceFlag 174, 834, 1204, 1222, 1224, 2505, 7412
-
+    
     Write-Host "Restarting service"
     Restart-DbaService -Type Engine -Force
-
+    
     Write-Host "Setting recovery model"
     Set-DbaDbRecoveryModel -SqlInstance . -RecoveryModel Simple -Database AxDB -Confirm:$false
-    
-    Write-Host "purging disposable data"
-    $sql = "truncate table batchjobhistory
-    truncate table batchhistory
-    truncate table eventcud
-    truncate table sysdatabaselog
-    
-    EXEC sp_msforeachtable
-    @command1 ='truncate table ?'
-    ,@whereand = ' And Object_id In (Select Object_id From sys.objects
-    Where name like ''%tmp'')'"
-    
-    Execute-Sql -server "." -database "AxDB" -command $sql
 
     Write-Host "Setting database options"
     $sql = "ALTER DATABASE [AxDB] SET AUTO_CLOSE OFF"
@@ -307,11 +294,27 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
 
     $sql = "ALTER DATABASE [AxDB] SET AUTO_UPDATE_STATISTICS_ASYNC OFF"
     Execute-Sql -server "." -database "AxDB" -command $sql
+    
+    Write-Host "purging disposable data"
+    $sql = "truncate table batchjobhistory
+    truncate table batchhistory
+    truncate table eventcud
+    truncate table sysdatabaselog
+    delete batchjob where status in (3, 4, 8)
+    delete batch where not exists (select recid from batchjob where batch.BATCHJOBID = BATCHJOB.recid)
+
+    EXEC sp_msforeachtable
+    @command1 ='truncate table ?'
+    ,@whereand = ' And Object_id In (Select Object_id From sys.objects
+    Where name like ''%tmp'')'"
+    
+    Execute-Sql -server "." -database "AxDB" -command $sql
 
     $LargeTables | ForEach-Object {
         $sql = "delete $LargeTable where $LargeTable.CREATEDDATETIME < dateadd(""MM"", -2, getdate())"
         Execute-Sql -server "." -database "AxDB" -command $sql
     }
+
     
     $sql = "DELETE [REFERENCES] FROM [REFERENCES]
     JOIN Names ON (Names.Id = [REFERENCES].SourceId OR Names.Id = [REFERENCES].TargetId)
