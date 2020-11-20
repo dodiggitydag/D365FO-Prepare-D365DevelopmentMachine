@@ -317,7 +317,7 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     Execute-Sql -server "." -database "AxDB" -command $sql
 
     $LargeTables | ForEach-Object {
-        $sql = "delete $LargeTable where $LargeTable.CREATEDDATETIME < dateadd(""MM"", -2, getdate())"
+        $sql = "delete $_ where $_.CREATEDDATETIME < dateadd(""MM"", -2, getdate())"
         Execute-Sql -server "." -database "AxDB" -command $sql
     }
 
