@@ -46,13 +46,13 @@ foreach ($file in $files) {
     Invoke-WebRequest $download -Out $file
     Unblock-File $file
 }
-Start-Process "InstallToVS.exe" -Verb runAs    
+Start-Process "InstallToVS.exe" -Verb runAs
 
 
 # Set file and folder path for SSMS installer .exe
 $folderpath = "c:\windows\temp"
 $filepath = "$folderpath\SSMS-Setup-ENU.exe"
- 
+
 #If SSMS not present, download
 if (!(Test-Path $filepath)) {
     write-host "Downloading SQL Server SSMS..."
@@ -60,13 +60,13 @@ if (!(Test-Path $filepath)) {
     $clnt = New-Object System.Net.WebClient
     $clnt.DownloadFile($url, $filepath)
     Write-Host "SSMS installer download complete" -ForegroundColor Green
- 
+
 }
 else {
- 
+
     write-host "Located the SQL SSMS Installer binaries, moving on to install..."
 }
- 
+
 # start the SSMS installer
 write-host "Beginning SSMS install..." -nonewline
 $Parms = " /Install /Quiet /Norestart /Logs log.txt"
@@ -82,7 +82,7 @@ If (Test-Path -Path "$env:ProgramData\Chocolatey") {
 Else {
 
     Write-Host "Installing Chocolatey"
- 
+
     [System.Net.WebRequest]::DefaultWebProxy.Credentials = [System.Net.CredentialCache]::DefaultCredentials
     iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
 
@@ -130,7 +130,7 @@ Else {
         & $chocoExePath "install" $packageToInstall "-y" "-r"
     }
 }
- 
+
 #endregion
 
 
@@ -178,7 +178,7 @@ If (!(Test-Path $registryPath)) {
 }
 Else {
     $passwordChangeRegKey = Get-ItemProperty -Path $registryPath -Name $Name -ErrorAction SilentlyContinue
-    
+
     If (-Not $passwordChangeRegKey) {
         New-ItemProperty -Path $registryPath -Name $name -Value $value -PropertyType DWORD -Force | Out-Null
     }
@@ -232,7 +232,7 @@ Function Execute-Sql {
     Process {
         $scon = New-Object System.Data.SqlClient.SqlConnection
         $scon.ConnectionString = "Data Source=$server;Initial Catalog=$database;Integrated Security=true"
-        
+
         $cmd = New-Object System.Data.SqlClient.SqlCommand
         $cmd.Connection = $scon
         $cmd.CommandTimeout = 0
@@ -257,14 +257,14 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     Write-Host "Installing dbatools PowerShell module"
     Install-Module -Name dbatools -SkipPublisherCheck -Scope AllUsers
 
-    
+
     Write-Host "Installing Ola Hallengren's SQL Maintenance scripts"
     Import-Module -Name dbatools
     Install-DbaMaintenanceSolution -SqlInstance . -Database master
 
     Write-Host "Installing FirstAidResponder PowerShell module"
     Install-DbaFirstResponderKit -SqlInstance . -Database master
-    
+
     Write-Host "Install latest CU"
     $PathExists = Test-Path("C:\temp\SqlKB")
     if ($PathExists -eq $false) {
@@ -276,13 +276,17 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     $BuildTargets = Test-DbaBuild -SqlInstance . -MaxBehind 0CU -Update | Where-Object { !$PSItem.Compliant } | Select-Object -ExpandProperty BuildTarget -Unique
     Get-DbaBuildReference -Build $BuildTargets | ForEach-Object { Save-DbaKBUpdate -Path $DownloadPath -Name $PSItem.KBLevel };
     Update-DbaInstance -ComputerName . -Path $DownloadPath -Confirm:$false
-    
+
+    $BuildTargets = Test-DbaBuild -SqlInstance . -MaxBehind 0CU -Update | Where-Object { !$PSItem.Compliant } | Select-Object -ExpandProperty BuildTarget -Unique
+    Get-DbaBuildReference -Build $BuildTargets | ForEach-Object { Save-DbaKBUpdate -Path $DownloadPath -Name $PSItem.KBLevel };
+    Update-DbaInstance -ComputerName . -Path $DownloadPath -Confirm:$false
+
     Write-Host "Adding trace flags"
     Enable-DbaTraceFlag -SqlInstance . -TraceFlag 174, 834, 1204, 1222, 1224, 2505, 7412
-    
+
     Write-Host "Restarting service"
     Restart-DbaService -Type Engine -Force
-    
+
     Write-Host "Setting recovery model"
     Set-DbaDbRecoveryModel -SqlInstance . -RecoveryModel Simple -Database AxDB -Confirm:$false
 
@@ -299,8 +303,8 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     insert into batchservergroup(GROUPID, SERVERID, RECID, RECVERSION, CREATEDDATETIME, CREATEDBY)
     select GROUP_, 'Batch:'+@@servername, 5900000000 + cast(CRYPT_GEN_RANDOM(4) as bigint), 1, GETUTCDATE(), '-admin-' from batchgroup
         where not EXISTS (select recid from batchservergroup where batchservergroup.GROUPID = batchgroup.GROUP_)"
-    Execute-Sql -server "." -database "AxDB" -command $sql    
-    
+    Execute-Sql -server "." -database "AxDB" -command $sql
+
     Write-Host "purging disposable data"
     $sql = "truncate table batchjobhistory
     truncate table batchhistory
@@ -313,25 +317,87 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     @command1 ='truncate table ?'
     ,@whereand = ' And Object_id In (Select Object_id From sys.objects
     Where name like ''%tmp'')'"
-    
+
     Execute-Sql -server "." -database "AxDB" -command $sql
 
+    Write-Host "purging staging tables data"
+    $sql = "IF object_id('tempdb..#TMP') IS NOT NULL
+    DROP TABLE #TMP;
+    CREATE TABLE #TMP (TableName [nvarchar](250));
+    DECLARE cur CURSOR
+    FOR
+    SELECT A.SQLNAME
+    FROM SQLDICTIONARY A
+    WHERE A.FIELDID = 0
+        AND A.FLAGS = 0
+        AND A.NAME LIKE '%Staging'
+
+    OPEN cur;
+    DECLARE @TableName [nvarchar] (250);
+    FETCH NEXT
+    FROM cur
+    INTO @TableName;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        INSERT INTO #TMP (TableName)
+        VALUES (@TableName);
+
+        FETCH NEXT
+        FROM cur
+        INTO @TableName;
+    END;
+
+    CLOSE cur;
+    DEALLOCATE cur;
+    DECLARE cur CURSOR
+    FOR
+    SELECT TableName
+    FROM #TMP;
+    OPEN cur;
+    FETCH NEXT
+    FROM cur
+    INTO @TableName;
+
+    WHILE @@FETCH_STATUS = 0
+    BEGIN
+        DECLARE @_SQL NVARCHAR(4000)
+
+        SET @_SQL = N'TRUNCATE TABLE ' + QUOTENAME(@TableName)
+
+        PRINT (CHAR(250) + 'Removing from ' + @TableName + '...')
+
+        EXEC SP_EXECUTESQL @_SQL
+
+        FETCH NEXT
+        FROM cur
+        INTO @TableName;
+    END;
+
+    CLOSE cur;
+    DEALLOCATE cur;
+        --credits https://www.linkedin.com/pulse/truncate-all-dixf-staging-tables-msdyn365fo-paul-heisterkamp/
+    "
+
+    Execute-Sql -server "." -database "AxDB" -command $sql
+
+    Write-Host "purging disposable large tables data"
     $LargeTables | ForEach-Object {
         $sql = "delete $_ where $_.CREATEDDATETIME < dateadd(""MM"", -2, getdate())"
         Execute-Sql -server "." -database "AxDB" -command $sql
     }
 
-    
     $sql = "DELETE [REFERENCES] FROM [REFERENCES]
     JOIN Names ON (Names.Id = [REFERENCES].SourceId OR Names.Id = [REFERENCES].TargetId)
     JOIN Modules ON Names.ModuleId = Modules.Id
     WHERE Module LIKE '%Test%' AND Module <> 'TestEssentials'"
-    
+
     Execute-Sql -server "." -database "DYNAMICSXREFDB" -command $sql
-    
+
     Write-Host "Reclaiming freed database space"
-    Invoke-DbaDbShrink -SqlInstance . -Database AxDB, DYNAMICSXREFDB
-    
+    Invoke-DbaDbShrink -SqlInstance . -Database "AxDb" -FileType Data
+    Invoke-DbaDbShrink -SqlInstance . -Database "AxDb", "DYNAMICSXREFDB" -FileType Data
+
     Write-Host "Running Ola Hallengren's IndexOptimize tool"
     # http://calafell.me/defragment-indexes-on-d365-finance-operations-virtual-machine/
     $sql = "EXECUTE master.dbo.IndexOptimize
@@ -345,8 +411,11 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
         @UpdateStatistics = 'ALL',
         @OnlyModifiedStatistics = 'Y'"
 
-    Execute-Sql -server "." -database "master" -command $sql    
-} 
+    Execute-Sql -server "." -database "master" -command $sql
+
+    Write-Host "Reclaiming database log space"
+    Invoke-DbaDbShrink -SqlInstance . -Database -Database "AxDb", "DYNAMICSXREFDB" -FileType Log -ShrinkMethod TruncateOnly
+}
 Else {
     Write-Verbose "SQL not installed.  Skipped Ola Hallengren's index optimization"
 }
@@ -426,16 +495,16 @@ if ((Get-WmiObject Win32_OperatingSystem).Caption -Like "*Windows 10*") {
 #region Defragment all drives
 
 # Adapted from https://gallery.technet.microsoft.com/scriptcenter/Perform-a-disk-defragmentat-dfe4274c
-Function Start-DiskDefrag { 
+Function Start-DiskDefrag {
     [CmdletBinding()]
     [OutputType([Object])]
     Param (
-        [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $true)] [string] $DriveLetter, 
+        [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $true)] [string] $DriveLetter,
         [Parameter()] [switch] $Force
     )
-    
+
     Process {
- 
+
         Write-Verbose "Attempting to get volume information for $driveletter via WMI"
         Try {
             #Use WMI to get the disk volume via the Win32_Volume class
@@ -443,7 +512,7 @@ Function Start-DiskDefrag {
             Write-Verbose "Volume retrieved successfully.."
         }
         Catch { }
-        
+
 
         #Check if the force switch was specified, if it was begin the disk defragmentation
         If ($force) {
@@ -455,9 +524,9 @@ Function Start-DiskDefrag {
         }
         #If force was not specified check the available disk space the volume specified
         Else {
-            
+
             Write-Verbose "Checking free space for volume $driveletter"
-            
+
             #Check the free space on the volume is greater than 15% of the total volume size, if it isn't write an error
             if (($Volume.FreeSpace / 1GB) -lt ($Volume.Capacity / 1GB) * 0.15) {
                 Write-Error "Volume $Driveletter does not have sufficient free space to allow a disk defragmentation, to perform a disk defragmentation either free up some space on the volume or use Start-DiskDefrag with the -force switch"
@@ -469,10 +538,10 @@ Function Start-DiskDefrag {
                 $Defrag = $Volume.Defrag($false)
                 Write-Host "Complete"
             }
-            
+
         }
 
-        
+
         #Check the defragmentation results and inform the user of any errors
         Switch ($Defrag.ReturnValue) {
             0 { Write-Verbose "Defragmentation completed successfully..." }
