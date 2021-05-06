@@ -83,8 +83,9 @@ Else {
 
     Write-Host "Installing Chocolatey"
 
-    [System.Net.WebRequest]::DefaultWebProxy.Credentials = [System.Net.CredentialCache]::DefaultCredentials
-    iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+    Set-ExecutionPolicy Bypass -Scope Process -Force; 
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; 
+    Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
 
     #Determine choco executable location
     #   This is needed because the path variable is not updated
@@ -113,8 +114,8 @@ Else {
         "googlechrome"
         "notepadplusplus.install"
         "p4merge"
-        "peazip"
-        "postman"  # or insomnia-rest-api-client
+        "7zip"
+        "postman"
         "sysinternals"
         "vscode"
         "visualstudio-codealignment"
@@ -321,63 +322,10 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     Execute-Sql -server "." -database "AxDB" -command $sql
 
     Write-Host "purging staging tables data"
-    $sql = "IF object_id('tempdb..#TMP') IS NOT NULL
-    DROP TABLE #TMP;
-    CREATE TABLE #TMP (TableName [nvarchar](250));
-    DECLARE cur CURSOR
-    FOR
-    SELECT A.SQLNAME
-    FROM SQLDICTIONARY A
-    WHERE A.FIELDID = 0
-        AND A.FLAGS = 0
-        AND A.NAME LIKE '%Staging'
-
-    OPEN cur;
-    DECLARE @TableName [nvarchar] (250);
-    FETCH NEXT
-    FROM cur
-    INTO @TableName;
-
-    WHILE @@FETCH_STATUS = 0
-    BEGIN
-        INSERT INTO #TMP (TableName)
-        VALUES (@TableName);
-
-        FETCH NEXT
-        FROM cur
-        INTO @TableName;
-    END;
-
-    CLOSE cur;
-    DEALLOCATE cur;
-    DECLARE cur CURSOR
-    FOR
-    SELECT TableName
-    FROM #TMP;
-    OPEN cur;
-    FETCH NEXT
-    FROM cur
-    INTO @TableName;
-
-    WHILE @@FETCH_STATUS = 0
-    BEGIN
-        DECLARE @_SQL NVARCHAR(4000)
-
-        SET @_SQL = N'TRUNCATE TABLE ' + QUOTENAME(@TableName)
-
-        PRINT (CHAR(250) + 'Removing from ' + @TableName + '...')
-
-        EXEC SP_EXECUTESQL @_SQL
-
-        FETCH NEXT
-        FROM cur
-        INTO @TableName;
-    END;
-
-    CLOSE cur;
-    DEALLOCATE cur;
-        --credits https://www.linkedin.com/pulse/truncate-all-dixf-staging-tables-msdyn365fo-paul-heisterkamp/
-    "
+    $sql = "EXEC sp_msforeachtable
+    @command1 ='truncate table ?'
+    ,@whereand = ' And Object_id In (Select Object_id From sys.objects
+    Where name like ''%staging'')'"
 
     Execute-Sql -server "." -database "AxDB" -command $sql
 
@@ -423,7 +371,7 @@ Else {
 #endregion
 
 
-#region Update PowerShell Help, power settings, and Logoff icon
+#region Update PowerShell Help, power settings
 
 Write-Host "Updating PowerShell help"
 $what = ""
@@ -436,14 +384,6 @@ If ($what) {
 # Set power settings to High Performance
 Write-Host "Setting power settings to High Performance"
 powercfg.exe /SetActive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
-
-# Create Logoff Icon
-Write-Host "Creating logoff icon on desktop of the current user"
-$WshShell = New-Object -comObject WScript.Shell
-$Shortcut = $WshShell.CreateShortcut($env:HOMEDRIVE + $env:HOMEPATH + "\Desktop\logoff.lnk")
-$Shortcut.TargetPath = "C:\Windows\System32\logoff.exe"
-$Shortcut.Save()
-
 #endregion
 
 
@@ -462,115 +402,6 @@ if ((Get-WmiObject Win32_OperatingSystem).Caption -Like "*Windows 10*") {
 #endregion
 
 
-#region Remove Windows 10 Metro apps
-
-
-if ((Get-WmiObject Win32_OperatingSystem).Caption -Like "*Windows 10*") {
-
-    # Windows 10 Metro App Removals
-    # These start commented out so you choose
-
-    Write-Host "Removing Metro Apps"
-    Get-AppxPackage king.com.CandyCrushSaga | Remove-AppxPackage
-    Get-AppxPackage Microsoft.BingWeather | Remove-AppxPackage
-    Get-AppxPackage Microsoft.BingNews | Remove-AppxPackage
-    Get-AppxPackage Microsoft.BingSports | Remove-AppxPackage
-    Get-AppxPackage Microsoft.BingFinance | Remove-AppxPackage
-    Get-AppxPackage Microsoft.XboxApp | Remove-AppxPackage
-    Get-AppxPackage Microsoft.WindowsPhone | Remove-AppxPackage
-    Get-AppxPackage Microsoft.MicrosoftSolitaireCollection | Remove-AppxPackage
-    Get-AppxPackage Microsoft.People | Remove-AppxPackage
-    Get-AppxPackage Microsoft.ZuneMusic | Remove-AppxPackage
-    Get-AppxPackage Microsoft.ZuneVideo | Remove-AppxPackage
-    Get-AppxPackage Microsoft.Office.OneNote | Remove-AppxPackage
-    Get-AppxPackage Microsoft.Windows.Photos | Remove-AppxPackage
-    Get-AppxPackage Microsoft.WindowsSoundRecorder | Remove-AppxPackage
-    Get-AppxPackage microsoft.windowscommunicationsapps | Remove-AppxPackage
-    Get-AppxPackage Microsoft.SkypeApp | Remove-AppxPackage
-}
-
-#endregion
-
-
-#region Defragment all drives
-
-# Adapted from https://gallery.technet.microsoft.com/scriptcenter/Perform-a-disk-defragmentat-dfe4274c
-Function Start-DiskDefrag {
-    [CmdletBinding()]
-    [OutputType([Object])]
-    Param (
-        [Parameter(Mandatory = $true, ValueFromPipelineByPropertyName = $true)] [string] $DriveLetter,
-        [Parameter()] [switch] $Force
-    )
-
-    Process {
-
-        Write-Verbose "Attempting to get volume information for $driveletter via WMI"
-        Try {
-            #Use WMI to get the disk volume via the Win32_Volume class
-            $Volume = Get-WmiObject -Class win32_volume -Filter "DriveLetter='$DriveLetter'"
-            Write-Verbose "Volume retrieved successfully.."
-        }
-        Catch { }
-
-
-        #Check if the force switch was specified, if it was begin the disk defragmentation
-        If ($force) {
-
-            Write-Verbose "force parameter detected, disk defragmentation will be performed regardless of the free space on the volume"
-            Write-Host "Defragmenting volume $driveletter" -NoNewline
-            $Defrag = $Volume.Defrag($true)
-            Write-Host "Complete"
-        }
-        #If force was not specified check the available disk space the volume specified
-        Else {
-
-            Write-Verbose "Checking free space for volume $driveletter"
-
-            #Check the free space on the volume is greater than 15% of the total volume size, if it isn't write an error
-            if (($Volume.FreeSpace / 1GB) -lt ($Volume.Capacity / 1GB) * 0.15) {
-                Write-Error "Volume $Driveletter does not have sufficient free space to allow a disk defragmentation, to perform a disk defragmentation either free up some space on the volume or use Start-DiskDefrag with the -force switch"
-            }
-            Else {
-                #Sufficient free space is available, perform the disk defragmentation
-                Write-Verbose "Volume has sufficient free space for a defragmentation to be performed"
-                Write-Host "Defragmenting volume $driveletter" -NoNewline
-                $Defrag = $Volume.Defrag($false)
-                Write-Host "Complete"
-            }
-
-        }
-
-
-        #Check the defragmentation results and inform the user of any errors
-        Switch ($Defrag.ReturnValue) {
-            0 { Write-Verbose "Defragmentation completed successfully..." }
-            1 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Access Denied" }
-            2 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Defragmentation is not supported for this volume" }
-            3 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Volume dirty bit is set" }
-            4 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Insufficient disk space" }
-            5 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Corrupt master file table detected" }
-            6 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: The operation was cancelled" }
-            7 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: The operation was cancelled" }
-            8 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: A disk defragmentation is already in process" }
-            9 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Unable to connect to the defragmentation engine" }
-            10 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: A defragmentation engine error occurred" }
-            11 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Unknown error" }
-        }
-    }
-}
-
-# Loop through the disks and defrag each one
-ForEach ($res in Get-Partition) {
-    $dl = $res.DriveLetter
-    If ($dl -ne $null -and $dl -ne "") {
-        Write-Host "Defraging disk $dl"
-
-        $dl = $dl + ":"
-
-        Start-DiskDefrag $dl
-    }
-}
 
 #run windows update
 Install-Module PSWindowsUpdate
