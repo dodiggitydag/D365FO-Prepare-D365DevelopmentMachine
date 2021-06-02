@@ -74,6 +74,12 @@ $Prms = $Parms.Split(" ")
 & "$filepath" $Prms | Out-Null
 Write-Host "SSMS installation complete" -ForegroundColor Green
 
+#run windows update
+Install-Module PSWindowsUpdate
+Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -AutoReboot
+
+#endregion
+
 
 If (Test-Path -Path "$env:ProgramData\Chocolatey") {
     choco upgrade chocolatey -y -r
@@ -398,13 +404,5 @@ if ((Get-WmiObject Win32_OperatingSystem).Caption -Like "*Windows 10*") {
     Set-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config -Name DODownloadMode -Type DWord -Value 1
     Set-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization -Name SystemSettingsDownloadMode -Type DWord -Value 3
 }
-
-#endregion
-
-
-
-#run windows update
-Install-Module PSWindowsUpdate
-Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -AutoReboot
 
 #endregion
