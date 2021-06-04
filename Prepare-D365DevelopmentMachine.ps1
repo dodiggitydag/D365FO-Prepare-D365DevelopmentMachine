@@ -368,7 +368,7 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     Execute-Sql -server "." -database "master" -command $sql
 
     Write-Host "Reclaiming database log space"
-    Invoke-DbaDbShrink -SqlInstance . -Database -Database "AxDb", "DYNAMICSXREFDB" -FileType Log -ShrinkMethod TruncateOnly
+    Invoke-DbaDbShrink -SqlInstance . -Database "AxDb", "DYNAMICSXREFDB" -FileType Log -ShrinkMethod TruncateOnly
 }
 Else {
     Write-Verbose "SQL not installed.  Skipped Ola Hallengren's index optimization"
