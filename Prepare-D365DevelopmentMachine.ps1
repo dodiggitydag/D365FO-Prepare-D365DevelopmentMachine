@@ -264,6 +264,9 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     Write-Host "Installing dbatools PowerShell module"
     Install-Module -Name dbatools -SkipPublisherCheck -Scope AllUsers
 
+    Import-Module dbatools
+    
+    Set-DbaMaxMemory -SqlInstance . -Max 4096
 
     Write-Host "Installing Ola Hallengren's SQL Maintenance scripts"
     Import-Module -Name dbatools
