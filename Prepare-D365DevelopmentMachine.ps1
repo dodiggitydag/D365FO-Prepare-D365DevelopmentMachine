@@ -42,8 +42,7 @@ Else {
 
 
     $packages = @(
-        #"adobereader" - TODO: test for compatibilitiy on Windows Server 2016
-        #"microsoftazurestorageexplorer"  - TODO: The current package has a bad checksum, test again later
+        "microsoftazurestorageexplorer"  - TODO: The current package has a bad checksum, test again later
         "azurepowershell"
         "azure-cli"
         "winmerge"
