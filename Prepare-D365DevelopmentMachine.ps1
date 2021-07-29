@@ -17,6 +17,12 @@
 
 #region Install additional apps using Chocolatey
 
+param (
+        [Parameter( Mandatory=$false,
+                    HelpMessage="Disable the Financial Reporter service?")]
+                    [switch]$disableMR = $true
+        )
+
 If(Test-Path -Path "$env:ProgramData\Chocolatey") {
     choco upgrade chocolatey -y -r
     choco upgrade all --ignore-checksums -y -r
@@ -42,7 +48,7 @@ Else {
 
 
     $packages = @(
-        "microsoftazurestorageexplorer"  - TODO: The current package has a bad checksum, test again later
+        "microsoftazurestorageexplorer"  # TODO: The current package has a bad checksum, test again later
         "azurepowershell"
         "azure-cli"
         "winmerge"
@@ -90,8 +96,11 @@ else {
 Write-Host "Setting web browser homepage to the local environment"
 Get-D365Url | Set-D365StartPage
 
-Write-Host "Setting Management Reporter to manual startup to reduce churn and Event Log messages"
-Get-D365Environment -FinancialReporter | Set-Service -StartupType Manual
+If ($disableMR)
+{
+	Write-Host "Setting Management Reporter to manual startup to reduce churn and Event Log messages"
+	Get-D365Environment -FinancialReporter | Set-Service -StartupType Manual
+}
 
 Write-Host "Setting Windows Defender rules to speed up compilation time"
 Add-D365WindowsDefenderRules -Silent
@@ -368,7 +377,7 @@ Function Start-DiskDefrag {
 # Loop through the disks and defrag each one
 ForEach ($res in Get-Partition) {
     $dl = $res.DriveLetter
-    If ($dl -ne $null -and $dl -ne "") {
+    If ($dl -ne $null -and $dl -match '[\w]' -and !($dl -match '[\d]')) {
         Write-Host "Defraging disk $dl"
 
         $dl = $dl + ":"
