@@ -368,7 +368,7 @@ Function Start-DiskDefrag {
 # Loop through the disks and defrag each one
 ForEach ($res in Get-Partition) {
     $dl = $res.DriveLetter
-    If ($dl -ne $null -and $dl -ne "") {
+    If ($dl -ne $null -and $dl -match '[\w]' -and !($dl -match '[\d]')) {
         Write-Host "Defraging disk $dl"
 
         $dl = $dl + ":"
