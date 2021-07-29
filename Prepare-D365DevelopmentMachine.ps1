@@ -42,7 +42,7 @@ Else {
 
 
     $packages = @(
-        "microsoftazurestorageexplorer"  - TODO: The current package has a bad checksum, test again later
+        "microsoftazurestorageexplorer"  # TODO: The current package has a bad checksum, test again later
         "azurepowershell"
         "azure-cli"
         "winmerge"
