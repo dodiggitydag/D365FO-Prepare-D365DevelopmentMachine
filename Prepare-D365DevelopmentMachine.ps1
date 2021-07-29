@@ -17,6 +17,12 @@
 
 #region Install additional apps using Chocolatey
 
+param (
+        [Parameter( Mandatory=$false,
+                    HelpMessage="Disable the Financial Reporter service?")]
+                    [switch]$disableMR = $true
+        )
+
 If(Test-Path -Path "$env:ProgramData\Chocolatey") {
     choco upgrade chocolatey -y -r
     choco upgrade all --ignore-checksums -y -r
@@ -90,8 +96,11 @@ else {
 Write-Host "Setting web browser homepage to the local environment"
 Get-D365Url | Set-D365StartPage
 
-Write-Host "Setting Management Reporter to manual startup to reduce churn and Event Log messages"
-Get-D365Environment -FinancialReporter | Set-Service -StartupType Manual
+If ($disableMR)
+{
+	Write-Host "Setting Management Reporter to manual startup to reduce churn and Event Log messages"
+	Get-D365Environment -FinancialReporter | Set-Service -StartupType Manual
+}
 
 Write-Host "Setting Windows Defender rules to speed up compilation time"
 Add-D365WindowsDefenderRules -Silent
