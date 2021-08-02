@@ -45,6 +45,9 @@ Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.We
 ```
 Please record any problems encountered as issues to this repository.  Occasionally the tool used for automatic installations, Chocolately, will have an invlalid link to the installer for the software.  This is nothing we can change, however, it can be reported to the Chocolately project team.
 
+## d365fo.tools
+If you are not already using [d365fo.tools](https://github.com/d365collaborative/d365fo.tools) you should!  You can use the Install-D365SupportingSoftware command to install the packages this script does, quickly.
+
 ## Contributions are Encouraged
 There are several ways to contribute or give thanks:
 
