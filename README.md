@@ -41,7 +41,7 @@ This repository contains a script for preparing a development machine for Dynami
 Before running this script, you should create the VM, either using LCS or the VHD, and start the environment.  The first hour may be Windows Updates and the "antimalware" executable doing a virus scan on the drive.  Once that has completed (possible reboot required), run the following command to execute the PowerShell script on the VM:
 
 ```powershell
-Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/dodiggitydag/D365FO-Prepare-D365DevelopmentMachine/master/Prepare-D365DevelopmentMachine.ps1'))
+Set-ExecutionPolicy Bypass -Scope Process -Force; iex ((New-Object System.Net.WebClient).DownloadString('https://raw.githubusercontent.com/juliomutley/D365FO-Prepare-D365DevelopmentMachine/master/Prepare-D365DevelopmentMachine.ps1'))
 ```
 Please record any problems encountered as issues to this repository.  Occasionally the tool used for automatic installations, Chocolately, will have an invlalid link to the installer for the software.  This is nothing we can change, however, it can be reported to the Chocolately project team.
 

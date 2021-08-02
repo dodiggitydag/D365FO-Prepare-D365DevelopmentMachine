@@ -17,63 +17,133 @@
 
 #region Install additional apps using Chocolatey
 
-If(Test-Path -Path "$env:ProgramData\Chocolatey") {
+#update visual studio
+Start-Process -Wait `
+    -FilePath "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installer.exe" `
+    -ArgumentList 'update --passive --norestart --installpath "C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional"'
+
+
+#install TrudAX
+$repo = "TrudAX/TRUDUtilsD365"
+$releases = "https://api.github.com/repos/$repo/releases"
+$path = "C:\Temp\Addin"
+
+If (!(test-path $path)) {
+    New-Item -ItemType Directory -Force -Path $path
+}
+cd $path
+
+Write-Host Determining latest release
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+$tag = (Invoke-WebRequest -Uri $releases -UseBasicParsing | ConvertFrom-Json)[0].tag_name
+
+$files = @("InstallToVS.exe", "TRUDUtilsD365.dll", "TRUDUtilsD365.pdb")
+
+Write-Host Downloading files
+foreach ($file in $files) {
+    $download = "https://github.com/$repo/releases/download/$tag/$file"
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Invoke-WebRequest $download -Out $file
+    Unblock-File $file
+}
+Start-Process "InstallToVS.exe" -Verb runAs
+
+
+# Set file and folder path for SSMS installer .exe
+$folderpath = "c:\windows\temp"
+$filepath = "$folderpath\SSMS-Setup-ENU.exe"
+
+#If SSMS not present, download
+if (!(Test-Path $filepath)) {
+    write-host "Downloading SQL Server SSMS..."
+    $URL = "https://aka.ms/ssmsfullsetup"
+    $clnt = New-Object System.Net.WebClient
+    $clnt.DownloadFile($url, $filepath)
+    Write-Host "SSMS installer download complete" -ForegroundColor Green
+
+}
+else {
+
+    write-host "Located the SQL SSMS Installer binaries, moving on to install..."
+}
+
+# start the SSMS installer
+write-host "Beginning SSMS install..." -nonewline
+$Parms = " /Install /Quiet /Norestart /Logs log.txt"
+$Prms = $Parms.Split(" ")
+& "$filepath" $Prms | Out-Null
+Write-Host "SSMS installation complete" -ForegroundColor Green
+
+#run windows update
+Install-Module PSWindowsUpdate
+Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -AutoReboot
+
+#endregion
+
+
+If (Test-Path -Path "$env:ProgramData\Chocolatey") {
     choco upgrade chocolatey -y -r
     choco upgrade all --ignore-checksums -y -r
 }
 Else {
 
-    Write-Host “Installing Chocolatey”
- 
-    [System.Net.WebRequest]::DefaultWebProxy.Credentials = [System.Net.CredentialCache]::DefaultCredentials
-    iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+    Write-Host "Installing Chocolatey"
+
+    Set-ExecutionPolicy Bypass -Scope Process -Force; 
+    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; 
+    Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
 
     #Determine choco executable location
     #   This is needed because the path variable is not updated
     #   This part is copied from https://chocolatey.org/install.ps1
     $chocoPath = [Environment]::GetEnvironmentVariable("ChocolateyInstall")
     if ($chocoPath -eq $null -or $chocoPath -eq '') {
-      $chocoPath = "$env:ALLUSERSPROFILE\Chocolatey"
+        $chocoPath = "$env:ALLUSERSPROFILE\Chocolatey"
     }
     if (!(Test-Path ($chocoPath))) {
-      $chocoPath = "$env:SYSTEMDRIVE\ProgramData\Chocolatey"
+        $chocoPath = "$env:SYSTEMDRIVE\ProgramData\Chocolatey"
     }
     $chocoExePath = Join-Path $chocoPath 'bin\choco.exe'
 
+    $LargeTables = @(
+        #"LargeTables"
+    )
 
     $packages = @(
-        "microsoftazurestorageexplorer"  - TODO: The current package has a bad checksum, test again later
-        "azurepowershell"
+        "adobereader"
         "azure-cli"
-        "winmerge"
-        #"python"
-        "vscode"
-        "vscode-mssql"
-        "vscode-azurerm-tools"
-        "peazip"
-        "microsoft-edge"
-        "notepadplusplus.install"
-        #"git.install"
-        "sysinternals"
-        "postman"  # or insomnia-rest-api-client
+        "azure-data-studio"
+        "azurepowershell"
+        "dotnetcore"
         "fiddler"
+        "git.install"
+        "googlechrome"
+        "notepadplusplus.install"
+        "p4merge"
+        "7zip"
+        "postman"
+        "sysinternals"
+        "vscode"
+        "visualstudio-codealignment"
+        "vscode-azurerm-tools"
+        "vscode-powershell"
+        "winmerge"
     )
 
     # Install each program
     foreach ($packageToInstall in $packages) {
 
-        Write-Host “Installing $packageToInstall” -ForegroundColor Green
+        Write-Host "Installing $packageToInstall" -ForegroundColor Green
         & $chocoExePath "install" $packageToInstall "-y" "-r"
     }
 }
- 
+
 #endregion
 
 
 #region Installing d365fo.tools
 
 # This is requried by Find-Module, by doing it beforehand we remove some warning messages
-Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force -Scope AllUsers
 Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
 
 # Installing d365fo.tools
@@ -102,28 +172,24 @@ Add-D365WindowsDefenderRules -Silent
 #region Local User Policy
 
 # Set the password to never expire
-Get-WmiObject Win32_UserAccount -filter "LocalAccount=True" | ? {$_.SID -Like "S-1-5-21-*-500"} | Set-LocalUser -PasswordNeverExpires 1
+Get-WmiObject Win32_UserAccount -filter "LocalAccount=True" | ? { $_.SID -Like "S-1-5-21-*-500" } | Set-LocalUser -PasswordNeverExpires 1
 
 # Disable changing the password
 $registryPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\System"
 $name = "DisableChangePassword"
 $value = "1"
 
-If (!(Test-Path $registryPath))
-{
+If (!(Test-Path $registryPath)) {
     New-Item -Path $registryPath -Force | Out-Null
     New-ItemProperty -Path $registryPath -Name $name -Value $value -PropertyType DWORD -Force | Out-Null
 }
-Else
-{
+Else {
     $passwordChangeRegKey = Get-ItemProperty -Path $registryPath -Name $Name -ErrorAction SilentlyContinue
-    
-    If (-Not $passwordChangeRegKey)
-    {
+
+    If (-Not $passwordChangeRegKey) {
         New-ItemProperty -Path $registryPath -Name $name -Value $value -PropertyType DWORD -Force | Out-Null
     }
-    Else
-    {
+    Else {
         Set-ItemProperty -Path $registryPath -Name $name -Value $value
     }
 }
@@ -134,7 +200,7 @@ Else
 
 # Disable Windows Telemetry (requires a reboot to take effect)
 Set-ItemProperty -Path HKLM:\SOFTWARE\Policies\Microsoft\Windows\DataCollection -Name AllowTelemetry -Type DWord -Value 0
-Get-Service DiagTrack,Dmwappushservice | Stop-Service | Set-Service -StartupType Disabled
+Get-Service DiagTrack, Dmwappushservice | Stop-Service | Set-Service -StartupType Disabled
 
 # Start Menu: Disable Bing Search Results
 Set-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search -Name BingSearchEnabled -Type DWord -Value 0
@@ -142,20 +208,20 @@ Set-ItemProperty -Path HKCU:\SOFTWARE\Microsoft\Windows\CurrentVersion\Search -N
 
 # Start Menu: Disable Cortana
 If (!(Test-Path "HKCU:\SOFTWARE\Microsoft\Personalization\Settings")) {
-	New-Item -Path "HKCU:\SOFTWARE\Microsoft\Personalization\Settings" -Force | Out-Null
+    New-Item -Path "HKCU:\SOFTWARE\Microsoft\Personalization\Settings" -Force | Out-Null
 }
 Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\Personalization\Settings" -Name "AcceptedPrivacyPolicy" -Type DWord -Value 0
 If (!(Test-Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization")) {
-	New-Item -Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization" -Force | Out-Null
+    New-Item -Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization" -Force | Out-Null
 }
 Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization" -Name "RestrictImplicitTextCollection" -Type DWord -Value 1
 Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization" -Name "RestrictImplicitInkCollection" -Type DWord -Value 1
 If (!(Test-Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore")) {
-	New-Item -Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore" -Force | Out-Null
+    New-Item -Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore" -Force | Out-Null
 }
 Set-ItemProperty -Path "HKCU:\SOFTWARE\Microsoft\InputPersonalization\TrainedDataStore" -Name "HarvestContacts" -Type DWord -Value 0
 If (!(Test-Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search")) {
-	New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" -Force | Out-Null
+    New-Item -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" -Force | Out-Null
 }
 Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search" -Name "AllowCortana" -Type DWord -Value 0
 
@@ -166,48 +232,130 @@ Set-ItemProperty -Path "HKLM:\SOFTWARE\Policies\Microsoft\Windows\Windows Search
 
 Function Execute-Sql {
     Param(
-        [Parameter(Mandatory=$true)][string]$server,
-        [Parameter(Mandatory=$true)][string]$database,
-        [Parameter(Mandatory=$true)][string]$command
+        [Parameter(Mandatory = $true)][string]$server,
+        [Parameter(Mandatory = $true)][string]$database,
+        [Parameter(Mandatory = $true)][string]$command
     )
-    Process
-    {
+    Process {
         $scon = New-Object System.Data.SqlClient.SqlConnection
         $scon.ConnectionString = "Data Source=$server;Initial Catalog=$database;Integrated Security=true"
-        
+
         $cmd = New-Object System.Data.SqlClient.SqlCommand
         $cmd.Connection = $scon
         $cmd.CommandTimeout = 0
         $cmd.CommandText = $command
 
-        try
-        {
+        try {
             $scon.Open()
             $cmd.ExecuteNonQuery()
         }
-        catch [Exception]
-        {
+        catch [Exception] {
             Write-Warning $_.Exception.Message
         }
-        finally
-        {
+        finally {
             $scon.Dispose()
             $cmd.Dispose()
         }
     }
 }
 
-If (Test-Path “HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL”) {
+If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL") {
 
-    Write-Host “Installing dbatools PowerShell module”
+    Write-Host "Installing dbatools PowerShell module"
     Install-Module -Name dbatools -SkipPublisherCheck -Scope AllUsers
 
-    Write-Host “Installing Ola Hallengren's SQL Maintenance scripts”
+    Import-Module dbatools
+    
+    Set-DbaMaxMemory -SqlInstance . -Max 4096
+
+    Write-Host "Installing Ola Hallengren's SQL Maintenance scripts"
     Import-Module -Name dbatools
     Install-DbaMaintenanceSolution -SqlInstance . -Database master
 
-    Write-Host “Running Ola Hallengren's IndexOptimize tool”
+    Write-Host "Installing FirstAidResponder PowerShell module"
+    Install-DbaFirstResponderKit -SqlInstance . -Database master
 
+    Write-Host "Install latest CU"
+    $PathExists = Test-Path("C:\temp\SqlKB")
+    if ($PathExists -eq $false) {
+        mkdir "C:\temp\SqlKB"
+    }
+
+    $DownloadPath = "C:\temp\SqlKB"
+
+    $BuildTargets = Test-DbaBuild -SqlInstance . -MaxBehind 0CU -Update | Where-Object { !$PSItem.Compliant } | Select-Object -ExpandProperty BuildTarget -Unique
+    Get-DbaBuildReference -Build $BuildTargets | ForEach-Object { Save-DbaKBUpdate -Path $DownloadPath -Name $PSItem.KBLevel };
+    Update-DbaInstance -ComputerName . -Path $DownloadPath -Confirm:$false
+
+    $BuildTargets = Test-DbaBuild -SqlInstance . -MaxBehind 0CU -Update | Where-Object { !$PSItem.Compliant } | Select-Object -ExpandProperty BuildTarget -Unique
+    Get-DbaBuildReference -Build $BuildTargets | ForEach-Object { Save-DbaKBUpdate -Path $DownloadPath -Name $PSItem.KBLevel };
+    Update-DbaInstance -ComputerName . -Path $DownloadPath -Confirm:$false
+
+    Write-Host "Adding trace flags"
+    Enable-DbaTraceFlag -SqlInstance . -TraceFlag 174, 834, 1204, 1222, 1224, 2505, 7412
+
+    Write-Host "Restarting service"
+    Restart-DbaService -Type Engine -Force
+
+    Write-Host "Setting recovery model"
+    Set-DbaDbRecoveryModel -SqlInstance . -RecoveryModel Simple -Database AxDB -Confirm:$false
+
+    Write-Host "Setting database options"
+    $sql = "ALTER DATABASE [AxDB] SET AUTO_CLOSE OFF"
+    Execute-Sql -server "." -database "AxDB" -command $sql
+
+    $sql = "ALTER DATABASE [AxDB] SET AUTO_UPDATE_STATISTICS_ASYNC OFF"
+    Execute-Sql -server "." -database "AxDB" -command $sql
+
+    Write-Host "Setting batchservergroup options"
+    $sql = "delete batchservergroup where SERVERID <> 'Batch:'+@@servername
+
+    insert into batchservergroup(GROUPID, SERVERID, RECID, RECVERSION, CREATEDDATETIME, CREATEDBY)
+    select GROUP_, 'Batch:'+@@servername, 5900000000 + cast(CRYPT_GEN_RANDOM(4) as bigint), 1, GETUTCDATE(), '-admin-' from batchgroup
+        where not EXISTS (select recid from batchservergroup where batchservergroup.GROUPID = batchgroup.GROUP_)"
+    Execute-Sql -server "." -database "AxDB" -command $sql
+
+    Write-Host "purging disposable data"
+    $sql = "truncate table batchjobhistory
+    truncate table batchhistory
+    truncate table eventcud
+    truncate table sysdatabaselog
+    delete batchjob where status in (3, 4, 8)
+    delete batch where not exists (select recid from batchjob where batch.BATCHJOBID = BATCHJOB.recid)
+
+    EXEC sp_msforeachtable
+    @command1 ='truncate table ?'
+    ,@whereand = ' And Object_id In (Select Object_id From sys.objects
+    Where name like ''%tmp'')'"
+
+    Execute-Sql -server "." -database "AxDB" -command $sql
+
+    Write-Host "purging staging tables data"
+    $sql = "EXEC sp_msforeachtable
+    @command1 ='truncate table ?'
+    ,@whereand = ' And Object_id In (Select Object_id From sys.objects
+    Where name like ''%staging'')'"
+
+    Execute-Sql -server "." -database "AxDB" -command $sql
+
+    Write-Host "purging disposable large tables data"
+    $LargeTables | ForEach-Object {
+        $sql = "delete $_ where $_.CREATEDDATETIME < dateadd(""MM"", -2, getdate())"
+        Execute-Sql -server "." -database "AxDB" -command $sql
+    }
+
+    $sql = "DELETE [REFERENCES] FROM [REFERENCES]
+    JOIN Names ON (Names.Id = [REFERENCES].SourceId OR Names.Id = [REFERENCES].TargetId)
+    JOIN Modules ON Names.ModuleId = Modules.Id
+    WHERE Module LIKE '%Test%' AND Module <> 'TestEssentials'"
+
+    Execute-Sql -server "." -database "DYNAMICSXREFDB" -command $sql
+
+    Write-Host "Reclaiming freed database space"
+    Invoke-DbaDbShrink -SqlInstance . -Database "AxDb" -FileType Data
+    Invoke-DbaDbShrink -SqlInstance . -Database "AxDb", "DYNAMICSXREFDB" -FileType Data
+
+    Write-Host "Running Ola Hallengren's IndexOptimize tool"
     # http://calafell.me/defragment-indexes-on-d365-finance-operations-virtual-machine/
     $sql = "EXECUTE master.dbo.IndexOptimize
         @Databases = 'ALL_DATABASES',
@@ -221,14 +369,18 @@ If (Test-Path “HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQ
         @OnlyModifiedStatistics = 'Y'"
 
     Execute-Sql -server "." -database "master" -command $sql
-} Else {
-    Write-Verbose “SQL not installed.  Skipped Ola Hallengren's index optimization”
+
+    Write-Host "Reclaiming database log space"
+    Invoke-DbaDbShrink -SqlInstance . -Database "AxDb", "DYNAMICSXREFDB" -FileType Log -ShrinkMethod TruncateOnly
+}
+Else {
+    Write-Verbose "SQL not installed.  Skipped Ola Hallengren's index optimization"
 }
 
 #endregion
 
 
-#region Update PowerShell Help, power settings, and Logoff icon
+#region Update PowerShell Help, power settings
 
 Write-Host "Updating PowerShell help"
 $what = ""
@@ -241,14 +393,6 @@ If ($what) {
 # Set power settings to High Performance
 Write-Host "Setting power settings to High Performance"
 powercfg.exe /SetActive 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c
-
-# Create Logoff Icon
-Write-Host “Creating logoff icon on desktop of the current user”
-$WshShell = New-Object -comObject WScript.Shell
-$Shortcut = $WshShell.CreateShortcut($env:HOMEDRIVE + $env:HOMEPATH + "\Desktop\logoff.lnk")
-$Shortcut.TargetPath = "C:\Windows\System32\logoff.exe"
-$Shortcut.Save()
-
 #endregion
 
 
@@ -262,119 +406,6 @@ if ((Get-WmiObject Win32_OperatingSystem).Caption -Like "*Windows 10*") {
     Write-Host "Disabling P2P Update downlods outside of local network"
     Set-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization\Config -Name DODownloadMode -Type DWord -Value 1
     Set-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\DeliveryOptimization -Name SystemSettingsDownloadMode -Type DWord -Value 3
-}
-
-#endregion
-
-
-#region Remove Windows 10 Metro apps
-
-
-if ((Get-WmiObject Win32_OperatingSystem).Caption -Like "*Windows 10*") {
-
-    # Windows 10 Metro App Removals
-    # These start commented out so you choose
-
-    Write-Host "Removing Metro Apps"
-    Get-AppxPackage king.com.CandyCrushSaga | Remove-AppxPackage
-    Get-AppxPackage Microsoft.BingWeather | Remove-AppxPackage
-    Get-AppxPackage Microsoft.BingNews | Remove-AppxPackage
-    Get-AppxPackage Microsoft.BingSports | Remove-AppxPackage
-    Get-AppxPackage Microsoft.BingFinance | Remove-AppxPackage
-    Get-AppxPackage Microsoft.XboxApp | Remove-AppxPackage
-    Get-AppxPackage Microsoft.WindowsPhone | Remove-AppxPackage
-    Get-AppxPackage Microsoft.MicrosoftSolitaireCollection | Remove-AppxPackage
-    Get-AppxPackage Microsoft.People | Remove-AppxPackage
-    Get-AppxPackage Microsoft.ZuneMusic | Remove-AppxPackage
-    Get-AppxPackage Microsoft.ZuneVideo | Remove-AppxPackage
-    Get-AppxPackage Microsoft.Office.OneNote | Remove-AppxPackage
-    Get-AppxPackage Microsoft.Windows.Photos | Remove-AppxPackage
-    Get-AppxPackage Microsoft.WindowsSoundRecorder | Remove-AppxPackage
-    Get-AppxPackage microsoft.windowscommunicationsapps | Remove-AppxPackage
-    Get-AppxPackage Microsoft.SkypeApp | Remove-AppxPackage
-}
-
-#endregion
-
-
-#region Defragment all drives
-
-# Adapted from https://gallery.technet.microsoft.com/scriptcenter/Perform-a-disk-defragmentat-dfe4274c
-Function Start-DiskDefrag { 
-    [CmdletBinding()]
-    [OutputType([Object])]
-    Param (
-        [Parameter(Mandatory=$true, ValueFromPipelineByPropertyName=$true)] [string] $DriveLetter, 
-        [Parameter()] [switch] $Force
-    )
-    
-    Process {
- 
-        Write-Verbose "Attempting to get volume information for $driveletter via WMI"
-        Try {
-            #Use WMI to get the disk volume via the Win32_Volume class
-            $Volume = Get-WmiObject -Class win32_volume -Filter "DriveLetter='$DriveLetter'"
-            Write-Verbose "Volume retrieved successfully.."
-        }
-        Catch { }
-        
-
-        #Check if the force switch was specified, if it was begin the disk defragmentation
-        If ($force) {
-
-            Write-Verbose "force parameter detected, disk defragmentation will be performed regardless of the free space on the volume"
-            Write-Host "Defragmenting volume $driveletter" -NoNewline
-            $Defrag = $Volume.Defrag($true)
-            Write-Host "Complete"
-        }
-        #If force was not specified check the available disk space the volume specified
-        Else {
-            
-            Write-Verbose "Checking free space for volume $driveletter"
-            
-            #Check the free space on the volume is greater than 15% of the total volume size, if it isn't write an error
-            if (($Volume.FreeSpace /1GB) -lt ($Volume.Capacity / 1GB) * 0.15) {
-                Write-Error "Volume $Driveletter does not have sufficient free space to allow a disk defragmentation, to perform a disk defragmentation either free up some space on the volume or use Start-DiskDefrag with the -force switch"
-            }
-            Else {
-                #Sufficient free space is available, perform the disk defragmentation
-                Write-Verbose "Volume has sufficient free space for a defragmentation to be performed"
-                Write-Host "Defragmenting volume $driveletter" -NoNewline
-                $Defrag = $Volume.Defrag($false)
-                Write-Host "Complete"
-            }
-            
-        }
-
-        
-        #Check the defragmentation results and inform the user of any errors
-        Switch ($Defrag.ReturnValue) {
-            0  { Write-Verbose "Defragmentation completed successfully..." }
-            1  { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Access Denied" }
-            2  { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Defragmentation is not supported for this volume" }
-            3  { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Volume dirty bit is set" }
-            4  { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Insufficient disk space" }
-            5  { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Corrupt master file table detected" }
-            6  { Write-Error -Message "Defragmentation of volume $DriveLetter failed: The operation was cancelled" }
-            7  { Write-Error -Message "Defragmentation of volume $DriveLetter failed: The operation was cancelled" }
-            8  { Write-Error -Message "Defragmentation of volume $DriveLetter failed: A disk defragmentation is already in process" }
-            9  { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Unable to connect to the defragmentation engine" }
-            10 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: A defragmentation engine error occurred" }
-            11 { Write-Error -Message "Defragmentation of volume $DriveLetter failed: Unknown error" }
-        }
-    }
-}
-
-# Loop through the disks and defrag each one
-ForEach ($res in Get-Partition) {
-    $dl = $res.DriveLetter
-    If ($dl -ne $null -and $dl -ne "") {
-        Write-Host "Defraging disk $dl"
-
-        $dl = $dl + ":"
-
-        Start-DiskDefrag $dl
-    }
 }
 
 #endregion
