@@ -31,7 +31,7 @@ $path = "C:\Temp\Addin"
 If (!(test-path $path)) {
     New-Item -ItemType Directory -Force -Path $path
 }
-cd $path
+Set-Location $path
 
 Write-Host Determining latest release
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -48,6 +48,10 @@ foreach ($file in $files) {
 }
 Start-Process "InstallToVS.exe" -Verb runAs
 
+#run windows update
+Install-Module PSWindowsUpdate
+Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -AutoReboot
+#endregion
 
 # Set file and folder path for SSMS installer .exe
 $folderpath = "c:\windows\temp"
@@ -74,73 +78,6 @@ $Prms = $Parms.Split(" ")
 & "$filepath" $Prms | Out-Null
 Write-Host "SSMS installation complete" -ForegroundColor Green
 
-#run windows update
-Install-Module PSWindowsUpdate
-Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -AutoReboot
-
-#endregion
-
-
-If (Test-Path -Path "$env:ProgramData\Chocolatey") {
-    choco upgrade chocolatey -y -r
-    choco upgrade all --ignore-checksums -y -r
-}
-Else {
-
-    Write-Host "Installing Chocolatey"
-
-    Set-ExecutionPolicy Bypass -Scope Process -Force; 
-    [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; 
-    Invoke-Expression ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
-
-    #Determine choco executable location
-    #   This is needed because the path variable is not updated
-    #   This part is copied from https://chocolatey.org/install.ps1
-    $chocoPath = [Environment]::GetEnvironmentVariable("ChocolateyInstall")
-    if ($chocoPath -eq $null -or $chocoPath -eq '') {
-        $chocoPath = "$env:ALLUSERSPROFILE\Chocolatey"
-    }
-    if (!(Test-Path ($chocoPath))) {
-        $chocoPath = "$env:SYSTEMDRIVE\ProgramData\Chocolatey"
-    }
-    $chocoExePath = Join-Path $chocoPath 'bin\choco.exe'
-
-    $LargeTables = @(
-        #"LargeTables"
-    )
-
-    $packages = @(
-        "adobereader"
-        "azure-cli"
-        "azure-data-studio"
-        "azurepowershell"
-        "dotnetcore"
-        "fiddler"
-        "git.install"
-        "googlechrome"
-        "notepadplusplus.install"
-        "p4merge"
-        "7zip"
-        "postman"
-        "sysinternals"
-        "vscode"
-        "visualstudio-codealignment"
-        "vscode-azurerm-tools"
-        "vscode-powershell"
-        "winmerge"
-    )
-
-    # Install each program
-    foreach ($packageToInstall in $packages) {
-
-        Write-Host "Installing $packageToInstall" -ForegroundColor Green
-        & $chocoExePath "install" $packageToInstall "-y" "-r"
-    }
-}
-
-#endregion
-
-
 #region Installing d365fo.tools
 
 # This is requried by Find-Module, by doing it beforehand we remove some warning messages
@@ -156,6 +93,8 @@ else {
     Write-Host "Updating d365fo.tools"
     Update-Module -name d365fo.tools -SkipPublisherCheck -Scope AllUsers
 }
+
+Install-D365SupportingSoftware -Name "7zip" ,"adobereader" ,"azure-cli" ,"azure-data-studio" ,"azurepowershell" ,"dotnetcore" ,"fiddler" ,"git.install" ,"googlechrome" ,"notepadplusplus.install" ,"p4merge" ,"postman" ,"sysinternals" ,"visualstudio-codealignment" ,"vscode-azurerm-tools" ,"vscode-powershell" ,"vscode", "winmerge"
 
 Write-Host "Setting web browser homepage to the local environment"
 Get-D365Url | Set-D365StartPage
@@ -274,6 +213,9 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
 
     Write-Host "Installing FirstAidResponder PowerShell module"
     Install-DbaFirstResponderKit -SqlInstance . -Database master
+
+    Invoke-D365InstallSqlPackage
+    Invoke-D365InstallAzCopy
 
     Write-Host "Install latest CU"
     $PathExists = Test-Path("C:\temp\SqlKB")
