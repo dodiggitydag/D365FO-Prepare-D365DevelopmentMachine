@@ -23,6 +23,8 @@ Start-Process -Wait `
     -ArgumentList 'update --passive --norestart --installpath "C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional"'
 
 
+Get-Process devenv | Stop-Process
+
 #install TrudAX
 $repo = "TrudAX/TRUDUtilsD365"
 $releases = "https://api.github.com/repos/$repo/releases"
@@ -101,8 +103,9 @@ function Invoke-VSInstallExtension {
     Write-Host "Installation of $($PackageName) complete!"
 }
 
-Invoke-VSInstallExtension -PackageName 'ViktarKarpach.DebugAttachManager-9749'
+Invoke-VSInstallExtension -PackageName 'ViktarKarpach.DebugAttachManager'
 Invoke-VSInstallExtension -PackageName 'cpmcgrath.Codealignment'
+
 
 #run windows update
 Install-Module PSWindowsUpdate
