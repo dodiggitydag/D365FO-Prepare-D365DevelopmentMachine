@@ -53,7 +53,7 @@ Start-Process "InstallToVS.exe" -Verb runAs
 #endregion install TrudAX VS Addin
 
 #Install SSD addin - https://shashisadasivan.github.io/SSD365VSAddIn/
-iex (iwr "https://raw.githubusercontent.com/shashisadasivan/SSD365VSAddIn/master/Misc/install.ps1").Content
+Invoke-Expression (iwr "https://raw.githubusercontent.com/shashisadasivan/SSD365VSAddIn/master/Misc/install.ps1").Content
 
 # Based on https://gist.github.com/ScottHutchinson/b22339c3d3688da5c9b477281e258400
 # Based on http://nuts4.net/post/automated-download-and-installation-of-visual-studio-extensions-via-powershell
