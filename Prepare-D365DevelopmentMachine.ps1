@@ -15,17 +15,17 @@
  #  Download useful SQL and PowerShell scripts, using Git?
  #>
 
-#region Install additional apps using Chocolatey
+#region Update visual studio
+Get-Process devenv | Stop-Process
 
-#update visual studio
 Start-Process -Wait `
     -FilePath "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installer.exe" `
     -ArgumentList 'update --passive --norestart --installpath "C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional"'
 
+#endregion
 
-Get-Process devenv | Stop-Process
-
-#install TrudAX
+#region install VS Addins
+#region install TrudAX VS Addin
 $repo = "TrudAX/TRUDUtilsD365"
 $releases = "https://api.github.com/repos/$repo/releases"
 $path = "C:\Temp\Addin"
@@ -49,6 +49,11 @@ foreach ($file in $files) {
     Unblock-File $file
 }
 Start-Process "InstallToVS.exe" -Verb runAs
+
+#endregion install TrudAX VS Addin
+
+#Install SSD addin
+iex (iwr "https://raw.githubusercontent.com/shashisadasivan/SSD365VSAddIn/master/Misc/install.ps1").Content
 
 # Based on https://gist.github.com/ScottHutchinson/b22339c3d3688da5c9b477281e258400
 # Based on http://nuts4.net/post/automated-download-and-installation-of-visual-studio-extensions-via-powershell
@@ -105,15 +110,20 @@ function Invoke-VSInstallExtension {
 
 Invoke-VSInstallExtension -PackageName 'ViktarKarpach.DebugAttachManager'
 Invoke-VSInstallExtension -PackageName 'cpmcgrath.Codealignment'
+#endregion install VS Addins
 
-
-#run windows update
+#region run windows update
 Install-Module PSWindowsUpdate
 Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -AutoReboot
 #endregion
 
+#region Update SSMS
 # Set file and folder path for SSMS installer .exe
-$folderpath = "c:\windows\temp"
+$folderpath = "c:\temp\SSMS_KB"
+$PathExists = Test-Path($folderpath)
+if ($PathExists -eq $false) {
+    mkdir $folderpath
+}
 $filepath = "$folderpath\SSMS-Setup-ENU.exe"
 
 #If SSMS not present, download
@@ -135,10 +145,12 @@ write-host "Beginning SSMS install..." -nonewline
 $Parms = " /Install /Quiet /Norestart /Logs log.txt"
 $Prms = $Parms.Split(" ")
 & "$filepath" $Prms | Out-Null
+
+Remove-Item $folderpath
 Write-Host "SSMS installation complete" -ForegroundColor Green
+#endregion
 
 #region Installing d365fo.tools
-
 # This is requried by Find-Module, by doing it beforehand we remove some warning messages
 Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
 
@@ -152,8 +164,9 @@ else {
     Write-Host "Updating d365fo.tools"
     Update-Module -name d365fo.tools -SkipPublisherCheck -Scope AllUsers
 }
+#endregion
 
-Install-D365SupportingSoftware -Name "7zip" ,"adobereader" ,"azure-cli" ,"azure-data-studio" ,"azurepowershell" ,"dotnetcore" ,"fiddler" ,"git.install" ,"googlechrome" ,"notepadplusplus.install" ,"p4merge" ,"postman" ,"sysinternals" ,"visualstudio-codealignment" ,"vscode-azurerm-tools" ,"vscode-powershell" ,"vscode", "winmerge"
+Install-D365SupportingSoftware -Name "7zip" , "adobereader" , "azure-cli" , "azure-data-studio" , "azurepowershell" , "dotnetcore" , "fiddler" , "git.install" , "googlechrome" , "notepadplusplus.install" , "p4merge" , "postman" , "sysinternals" , "visualstudio-codealignment" , "vscode-azurerm-tools" , "vscode-powershell" , "vscode", "winmerge"
 
 Write-Host "Setting web browser homepage to the local environment"
 Get-D365Url | Set-D365StartPage
@@ -163,9 +176,6 @@ Get-D365Environment -FinancialReporter | Set-Service -StartupType Manual
 
 Write-Host "Setting Windows Defender rules to speed up compilation time"
 Add-D365WindowsDefenderRules -Silent
-
-
-#endregion
 
 #region Local User Policy
 
@@ -277,20 +287,16 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     Invoke-D365InstallAzCopy
 
     Write-Host "Install latest CU"
-    $PathExists = Test-Path("C:\temp\SqlKB")
+    $DownloadPath = "C:\temp\SqlKB"
+    $PathExists = Test-Path($DownloadPath)
     if ($PathExists -eq $false) {
-        mkdir "C:\temp\SqlKB"
+        mkdir $DownloadPath
     }
 
-    $DownloadPath = "C:\temp\SqlKB"
-
     $BuildTargets = Test-DbaBuild -SqlInstance . -MaxBehind 0CU -Update | Where-Object { !$PSItem.Compliant } | Select-Object -ExpandProperty BuildTarget -Unique
     Get-DbaBuildReference -Build $BuildTargets | ForEach-Object { Save-DbaKBUpdate -Path $DownloadPath -Name $PSItem.KBLevel };
     Update-DbaInstance -ComputerName . -Path $DownloadPath -Confirm:$false
-
-    $BuildTargets = Test-DbaBuild -SqlInstance . -MaxBehind 0CU -Update | Where-Object { !$PSItem.Compliant } | Select-Object -ExpandProperty BuildTarget -Unique
-    Get-DbaBuildReference -Build $BuildTargets | ForEach-Object { Save-DbaKBUpdate -Path $DownloadPath -Name $PSItem.KBLevel };
-    Update-DbaInstance -ComputerName . -Path $DownloadPath -Confirm:$false
+    Remove-Item $DownloadPath
 
     Write-Host "Adding trace flags"
     Enable-DbaTraceFlag -SqlInstance . -TraceFlag 174, 834, 1204, 1222, 1224, 2505, 7412
@@ -317,19 +323,33 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     Execute-Sql -server "." -database "AxDB" -command $sql
 
     Write-Host "purging disposable data"
-    $sql = "truncate table batchjobhistory
+    $sql = 
+    "truncate table batchjobhistory
+    truncate table BatchConstraintsHistory
     truncate table batchhistory
+    truncate table DMFSTAGINGEXECUTIONERRORS
+    truncate table DMFSTAGINGLOG
+    truncate table DMFSTAGINGLOGDETAILS
     truncate table eventcud
+    truncate table EVENTCUDLINES
+    truncate table formRunConfiguration
+    truncate table INVENTSUMLOGTTS
+    truncate table MP.PeggingIdMapping
+    truncate table REQPO
+    truncate table REQTRANS
+    truncate table REQTRANSCOV
+    truncate table SUNTAFRELEASEFAILURES
+    truncate table SUNTAFRELEASELOGLINEDETAILS
+    truncate table SUNTAFRELEASELOGTABLE
+    truncate table SUNTAFRELEASELOGTRANS
     truncate table sysdatabaselog
-    delete batchjob where status in (3, 4, 8)
-    delete batch where not exists (select recid from batchjob where batch.BATCHJOBID = BATCHJOB.recid)
-
-    EXEC sp_msforeachtable
-    @command1 ='truncate table ?'
-    ,@whereand = ' And Object_id In (Select Object_id From sys.objects
-    Where name like ''%tmp'')'"
-
-    Execute-Sql -server "." -database "AxDB" -command $sql
+    truncate table syslastvalue"
+    Execute-Sql -server $server -database $databaseName -command $sql
+    
+    Write-Host "purging disposable batch job data"
+    $sql = "delete batchjob where status in (3, 4, 8)
+    delete batch where not exists (select recid from batchjob where batch.BATCHJOBID = BATCHJOB.recid)"
+    Execute-Sql -server $server -database $databaseName -command $sql
 
     Write-Host "purging staging tables data"
     $sql = "EXEC sp_msforeachtable
