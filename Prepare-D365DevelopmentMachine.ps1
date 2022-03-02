@@ -53,7 +53,7 @@ Start-Process "InstallToVS.exe" -Verb runAs
 #endregion install TrudAX VS Addin
 
 #Install SSD addin - https://shashisadasivan.github.io/SSD365VSAddIn/
-Invoke-Expression (iwr "https://raw.githubusercontent.com/shashisadasivan/SSD365VSAddIn/master/Misc/install.ps1").Content
+Invoke-Expression (Invoke-WebRequest "https://raw.githubusercontent.com/shashisadasivan/SSD365VSAddIn/master/Misc/install.ps1").Content
 
 # Based on https://gist.github.com/ScottHutchinson/b22339c3d3688da5c9b477281e258400
 # Based on http://nuts4.net/post/automated-download-and-installation-of-visual-studio-extensions-via-powershell
@@ -155,14 +155,19 @@ Write-Host "SSMS installation complete" -ForegroundColor Green
 Set-PSRepository -Name PSGallery -InstallationPolicy Trusted
 
 # Installing d365fo.tools
-If ((Find-Module -Name d365fo.tools).InstalledDate -eq $null) {
-    Write-Host "Installing d365fo.tools"
-    Write-Host "    Documentation: https://github.com/d365collaborative/d365fo.tools"
-    Install-Module -Name d365fo.tools -SkipPublisherCheck -Scope AllUsers
-}
-else {
-    Write-Host "Updating d365fo.tools"
-    Update-Module -name d365fo.tools -SkipPublisherCheck -Scope AllUsers
+$Module2Service = $('dbatools',
+    'd365fo.tools')
+
+$Module2Service | ForEach-Object {
+    if (Get-Module -ListAvailable -Name $_) {
+        Write-Host "Updating " + $_
+        Update-Module -Name $_ -Force
+    } 
+    else {
+        Write-Host "Installing " + $_
+        Install-Module -Name $_ -SkipPublisherCheck -Scope AllUsers
+        Import-Module $_
+    }
 }
 #endregion
 
@@ -180,7 +185,7 @@ Add-D365WindowsDefenderRules -Silent
 #region Local User Policy
 
 # Set the password to never expire
-Get-WmiObject Win32_UserAccount -filter "LocalAccount=True" | ? { $_.SID -Like "S-1-5-21-*-500" } | Set-LocalUser -PasswordNeverExpires 1
+Get-WmiObject Win32_UserAccount -filter "LocalAccount=True" | Where-Object { $_.SID -Like "S-1-5-21-*-500" } | Set-LocalUser -PasswordNeverExpires 1
 
 # Disable changing the password
 $registryPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Policies\System"
@@ -268,12 +273,6 @@ Function Execute-Sql {
 }
 
 If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL") {
-
-    Write-Host "Installing dbatools PowerShell module"
-    Install-Module -Name dbatools -SkipPublisherCheck -Scope AllUsers
-
-    Import-Module dbatools
-    
     Set-DbaMaxMemory -SqlInstance . -Max 4096
 
     Write-Host "Installing Ola Hallengren's SQL Maintenance scripts"
