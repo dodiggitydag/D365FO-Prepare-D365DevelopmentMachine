@@ -18,6 +18,16 @@
 #region Update visual studio
 Get-Process devenv | Stop-Process
 
+$vsVersions = @("2017", "2019", "2022")
+
+Write-Host Downloading files
+foreach ($vsVersion in $vsVersions) {
+    Write-Information "Updating vs$vsversion"
+    Start-Process -Wait `
+    -FilePath "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installer.exe" `
+    -ArgumentList "update --passive --norestart --installpath ""C:\Program Files (x86)\Microsoft Visual Studio\$vsVersion\Professional"""
+}
+
 Start-Process -Wait `
     -FilePath "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installer.exe" `
     -ArgumentList 'update --passive --norestart --installpath "C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional"'
