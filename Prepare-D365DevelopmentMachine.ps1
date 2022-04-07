@@ -27,11 +27,6 @@ foreach ($vsVersion in $vsVersions) {
     -FilePath "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installer.exe" `
     -ArgumentList "update --passive --norestart --installpath ""C:\Program Files (x86)\Microsoft Visual Studio\$vsVersion\Professional"""
 }
-
-Start-Process -Wait `
-    -FilePath "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vs_installer.exe" `
-    -ArgumentList 'update --passive --norestart --installpath "C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional"'
-
 #endregion
 
 #region install VS Addins
