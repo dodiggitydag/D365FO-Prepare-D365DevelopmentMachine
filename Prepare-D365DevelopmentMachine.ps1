@@ -327,33 +327,50 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     Execute-Sql -server "." -database "AxDB" -command $sql
 
     Write-Host "purging disposable data"
-    $sql = 
-    "truncate table batchjobhistory
-    truncate table BatchConstraintsHistory
-    truncate table batchhistory
-    truncate table DMFSTAGINGEXECUTIONERRORS
-    truncate table DMFSTAGINGLOG
-    truncate table DMFSTAGINGLOGDETAILS
-    truncate table eventcud
-    truncate table EVENTCUDLINES
-    truncate table formRunConfiguration
-    truncate table INVENTSUMLOGTTS
-    truncate table MP.PeggingIdMapping
-    truncate table REQPO
-    truncate table REQTRANS
-    truncate table REQTRANSCOV
-    truncate table SUNTAFRELEASEFAILURES
-    truncate table SUNTAFRELEASELOGLINEDETAILS
-    truncate table SUNTAFRELEASELOGTABLE
-    truncate table SUNTAFRELEASELOGTRANS
-    truncate table sysdatabaselog
-    truncate table syslastvalue"
-    Execute-Sql -server $server -database $databaseName -command $sql
+
+$DiposableTables = @(
+    "batchjobhistory"
+    ,"BatchConstraintsHistory"
+    ,"batchhistory"
+    ,"DMFDEFINITIONGROUPEXECUTION"
+    ,"DMFDEFINITIONGROUPEXECUTIONHISTORY"
+    ,"DMFEXECUTION"
+    ,"DMFSTAGINGEXECUTIONERRORS"
+    ,"DMFSTAGINGLOG"
+    ,"DMFSTAGINGLOGDETAILS"
+    ,"DMFSTAGINGVALIDATIONLOG"
+    ,"eventcud"
+    ,"EVENTCUDLINES"
+    ,"formRunConfiguration"
+    ,"INVENTSUMLOGTTS"
+    ,"MP.PeggingIdMapping"
+    ,"REQPO"
+    ,"REQTRANS"
+    ,"REQTRANSCOV"
+    ,"RETAILLOG"
+    ,"SALESPARMLINE"
+    ,"SALESPARMSUBLINE"
+    ,"SALESPARMSUBTABLE"
+    ,"SALESPARMTABLE"
+    ,"SALESPARMUPDATE"
+    ,"SUNTAFRELEASEFAILURES"
+    ,"SUNTAFRELEASELOGLINEDETAILS"
+    ,"SUNTAFRELEASELOGTABLE"
+    ,"SUNTAFRELEASELOGTRANS"
+    ,"sysdatabaselog"
+    ,"syslastvalue"
+)
+
+$DiposableTables | ForEach-Object {
+    Write-Host "purging $_"
+    $sql = "truncate table $_"
+    Execute-Sql -server "." -database "AxDB" -command $sql
+}
     
     Write-Host "purging disposable batch job data"
     $sql = "delete batchjob where status in (3, 4, 8)
     delete batch where not exists (select recid from batchjob where batch.BATCHJOBID = BATCHJOB.recid)"
-    Execute-Sql -server $server -database $databaseName -command $sql
+    Execute-Sql -server "." -database "AxDB" -command $sql
 
     Write-Host "purging staging tables data"
     $sql = "EXEC sp_msforeachtable
@@ -361,6 +378,35 @@ If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL"
     ,@whereand = ' And Object_id In (Select Object_id From sys.objects
     Where name like ''%staging'')'"
 
+    Execute-Sql -server "." -database "AxDB" -command $sql
+
+    Write-Host "purging disposable report data"
+    $sql = "EXEC sp_msforeachtable
+    @command1 ='truncate table ?'
+    ,@whereand = ' And Object_id In (Select Object_id From sys.objects
+    Where name like ''%tmp'')'"
+    Execute-Sql -server "." -database "AxDB" -command $sql
+
+    Write-Host "dropping temp tables"
+    $sql = "EXEC sp_msforeachtable 
+    @command1 ='drop table ?'
+    ,@whereand = ' And Object_id In (Select Object_id FROM SYS.OBJECTS AS O WITH (NOLOCK), SYS.SCHEMAS AS S WITH (NOLOCK) WHERE S.NAME = ''DBO'' AND S.SCHEMA_ID = O.SCHEMA_ID AND O.TYPE = ''U'' AND O.NAME LIKE ''T[0-9]%'')' "
+    Execute-Sql -server "." -database "AxDB" -command $sql
+
+    Write-Host "dropping oledb error tmp tables"
+    $sql = "EXEC sp_msforeachtable 
+    @command1 ='drop table ?'
+    ,@whereand = ' And Object_id In (Select Object_id FROM SYS.OBJECTS AS O WITH (NOLOCK), SYS.SCHEMAS AS S WITH (NOLOCK) WHERE S.NAME = ''DBO'' AND S.SCHEMA_ID = O.SCHEMA_ID AND O.TYPE = ''U'' AND O.NAME LIKE ''DMF_OLEDB_Error_%'')' "
+    Execute-Sql -server "." -database "AxDB" -command $sql
+
+    $sql = "EXEC sp_msforeachtable 
+    @command1 ='drop table ?'
+    ,@whereand = ' And Object_id In (Select Object_id FROM SYS.OBJECTS AS O WITH (NOLOCK), SYS.SCHEMAS AS S WITH (NOLOCK) WHERE S.NAME = ''DBO'' AND S.SCHEMA_ID = O.SCHEMA_ID AND O.TYPE = ''U'' AND O.NAME LIKE ''DMF_FLAT_Error_%'')' "
+    Execute-Sql -server "." -database "AxDB" -command $sql
+
+    $sql = "EXEC sp_msforeachtable 
+    @command1 ='drop table ?'
+    ,@whereand = ' And Object_id In (Select Object_id FROM SYS.OBJECTS AS O WITH (NOLOCK), SYS.SCHEMAS AS S WITH (NOLOCK) WHERE S.NAME = ''DBO'' AND S.SCHEMA_ID = O.SCHEMA_ID AND O.TYPE = ''U'' AND O.NAME LIKE ''DMF_[0-9]%'')' "
     Execute-Sql -server "." -database "AxDB" -command $sql
 
     Write-Host "purging disposable large tables data"
