@@ -278,7 +278,12 @@ Function Execute-Sql {
 }
 
 If (Test-Path "HKLM:\Software\Microsoft\Microsoft SQL Server\Instance Names\SQL") {
-    Set-DbaMaxMemory -SqlInstance . -Max 4096
+
+    #Alocating 70% of the total server memory for sql server
+    $totalServerMemory = Get-WMIObject -Computername . -class win32_ComputerSystem | Select-Object -Expand TotalPhysicalMemory
+    $memoryForSqlServer = ($totalServerMemory * 0.7) / 1024 / 1024
+
+    Set-DbaMaxMemory -SqlInstance . -Max $memoryForSqlServer
 
     Write-Host "Installing Ola Hallengren's SQL Maintenance scripts"
     Import-Module -Name dbatools
@@ -443,6 +448,8 @@ $DiposableTables | ForEach-Object {
 
     Write-Host "Reclaiming database log space"
     Invoke-DbaDbShrink -SqlInstance . -Database "AxDb", "DYNAMICSXREFDB" -FileType Log -ShrinkMethod TruncateOnly
+
+    Set-DbaMaxMemory -SqlInstance . -Max 4096
 }
 Else {
     Write-Verbose "SQL not installed.  Skipped Ola Hallengren's index optimization"
