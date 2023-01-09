@@ -115,6 +115,7 @@ function Invoke-VSInstallExtension {
 
 Invoke-VSInstallExtension -PackageName 'ViktarKarpach.DebugAttachManager'
 Invoke-VSInstallExtension -PackageName 'cpmcgrath.Codealignment'
+Invoke-VSInstallExtension -PackageName 'MadsKristensen.TrailingWhitespaceVisualizer'
 #endregion install VS Addins
 
 #region run windows update
